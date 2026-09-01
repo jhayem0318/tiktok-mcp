@@ -1,14 +1,14 @@
 # TikTok MCP
 
-Minimal Laravel service that will become the TikTok Shop OAuth and MCP backend.
+Read-only TikTok Shop OAuth and Open API backend.
 
 ## Current endpoints
 
 - `GET /` returns the service status.
 - `GET /up` is Laravel's deployment health check.
-- `GET /tiktok/callback` returns `{"status":"TikTok callback ready"}`.
-
-The callback is intentionally a readiness endpoint for now. OAuth code exchange and token storage should be added only after the TikTok application credentials and required scopes are confirmed.
+- `GET /tiktok/callback` exchanges a one-time seller authorization code and stores encrypted tokens.
+- Signed Open API requests retrieve authorized shops, analytics, orders, products, finance, returns, and promotions.
+- Access tokens refresh automatically before expiry.
 
 ## Local setup
 
@@ -41,10 +41,28 @@ TIKTOK_CLIENT_SECRET=
 TIKTOK_REDIRECT_URI="https://your-domain.example/tiktok/callback"
 TIKTOK_AUTHORIZATION_URL=
 TIKTOK_TOKEN_URL=
+TIKTOK_REFRESH_URL=
+TIKTOK_API_URL=
 TIKTOK_SCOPES=
 ```
 
-Do not commit real credentials. Set them in the deployment platform's secret or environment-variable settings. The authorization and token URLs are placeholders because TikTok Shop endpoints can depend on the application's market and approved API version.
+Do not commit real credentials. Set them in the deployment platform's secret or environment-variable settings.
+
+## Read-only commands
+
+```bash
+php artisan tiktok:shop:test
+php artisan tiktok:shop:refresh
+php artisan tiktok:shop:data all --days=7 --limit=20
+php artisan tiktok:shop:data analytics --days=7
+php artisan tiktok:shop:data orders --days=7
+php artisan tiktok:shop:data products
+php artisan tiktok:shop:data finance --days=7
+php artisan tiktok:shop:data returns --days=7
+php artisan tiktok:shop:data promotions
+```
+
+Commands output aggregated connection and record-count information only. They do not print tokens, shop ciphers, or customer-level fields.
 
 ## Deployment checklist
 

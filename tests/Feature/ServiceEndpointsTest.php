@@ -213,6 +213,46 @@ class ServiceEndpointsTest extends TestCase
             && $request['grant_type'] === 'refresh_token');
     }
 
+    public function test_tiktok_shop_data_command_reads_products_without_printing_sensitive_fields(): void
+    {
+        $this->configureTikTokShop();
+        config()->set('services.tiktok.api_url', 'https://open-api.tiktokglobalshop.com');
+
+        $authorization = TikTokShopAuthorization::query()->create([
+            'app_key' => 'test-app-key',
+            'open_id' => 'seller-open-id',
+            'seller_name' => 'Anker Philippines',
+            'seller_base_region' => 'PH',
+            'user_type' => 0,
+            'access_token' => 'access-token-value',
+            'refresh_token' => 'refresh-token-value',
+            'access_token_expires_at' => now()->addWeek(),
+            'refresh_token_expires_at' => now()->addYear(),
+        ]);
+        TikTokShop::query()->create([
+            'tik_tok_shop_authorization_id' => $authorization->id,
+            'shop_id' => 'shop-id',
+            'shop_cipher' => 'secret-shop-cipher',
+            'name' => 'Anker Philippines',
+            'region' => 'PH',
+        ]);
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://open-api.tiktokglobalshop.com/product/202309/products/search*' => Http::response([
+                'code' => 0,
+                'message' => 'Success',
+                'data' => ['products' => [['id' => 'product-id'], ['id' => 'product-id-2']]],
+            ]),
+        ]);
+
+        $this->artisan('tiktok:shop:data products --days=7 --limit=20')
+            ->expectsOutputToContain('- products: connected; first-page records=2')
+            ->doesntExpectOutputToContain('secret-shop-cipher')
+            ->doesntExpectOutputToContain('access-token-value')
+            ->assertSuccessful();
+    }
+
     public function test_tiktok_callback_returns_502_when_identity_is_not_a_seller(): void
     {
         $this->configureTikTokShop();
