@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\TikTokShopCallbackController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -9,8 +10,5 @@ Route::get('/', function () {
     ]);
 });
 
-Route::get('/tiktok/callback', function () {
-    return response()->json([
-        'status' => 'TikTok callback ready',
-    ]);
-})->name('tiktok.callback');
+Route::get('/tiktok/callback', TikTokShopCallbackController::class)
+    ->name('tiktok.callback');

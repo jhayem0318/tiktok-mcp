@@ -36,11 +36,11 @@ return [
     ],
 
     'tiktok' => [
-        'client_key' => env('TIKTOK_CLIENT_KEY'),
-        'client_secret' => env('TIKTOK_CLIENT_SECRET'),
+        'app_key' => env('TIKTOK_APP_KEY', env('TIKTOK_CLIENT_KEY')),
+        'app_secret' => env('TIKTOK_APP_SECRET', env('TIKTOK_CLIENT_SECRET')),
         'redirect_uri' => env('TIKTOK_REDIRECT_URI'),
         'authorization_url' => env('TIKTOK_AUTHORIZATION_URL'),
-        'token_url' => env('TIKTOK_TOKEN_URL'),
+        'token_url' => env('TIKTOK_TOKEN_URL', 'https://auth.tiktok-shops.com/api/v2/token/get'),
         'scopes' => array_values(array_filter(array_map(
             'trim',
             explode(',', (string) env('TIKTOK_SCOPES', '')),
