@@ -253,6 +253,98 @@ class ServiceEndpointsTest extends TestCase
             ->assertSuccessful();
     }
 
+    public function test_tiktok_shop_mcp_requires_bearer_authentication(): void
+    {
+        config()->set('services.tiktok.mcp_bearer_token', 'mcp-secret');
+
+        $this->postJson('/api/tiktok/mcp', [
+            'jsonrpc' => '2.0',
+            'id' => 1,
+            'method' => 'tools/list',
+        ])->assertUnauthorized();
+    }
+
+    public function test_tiktok_shop_mcp_lists_read_only_tools(): void
+    {
+        config()->set('services.tiktok.mcp_bearer_token', 'mcp-secret');
+
+        $response = $this->withToken('mcp-secret')->postJson('/api/tiktok/mcp', [
+            'jsonrpc' => '2.0',
+            'id' => 1,
+            'method' => 'tools/list',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('jsonrpc', '2.0')
+            ->assertJsonCount(6, 'result.tools')
+            ->assertJsonPath('result.tools.0.annotations.readOnlyHint', true)
+            ->assertJsonPath('result.tools.0.annotations.destructiveHint', false);
+    }
+
+    public function test_tiktok_shop_mcp_returns_redacted_commercial_data(): void
+    {
+        $this->configureTikTokShop();
+        config()->set([
+            'services.tiktok.api_url' => 'https://open-api.tiktokglobalshop.com',
+            'services.tiktok.mcp_bearer_token' => 'mcp-secret',
+        ]);
+
+        $authorization = TikTokShopAuthorization::query()->create([
+            'app_key' => 'test-app-key',
+            'open_id' => 'seller-open-id',
+            'seller_name' => 'Anker Philippines',
+            'seller_base_region' => 'PH',
+            'user_type' => 0,
+            'access_token' => 'access-token-value',
+            'refresh_token' => 'refresh-token-value',
+            'access_token_expires_at' => now()->addWeek(),
+            'refresh_token_expires_at' => now()->addYear(),
+        ]);
+        TikTokShop::query()->create([
+            'tik_tok_shop_authorization_id' => $authorization->id,
+            'shop_id' => 'shop-id',
+            'shop_cipher' => 'secret-shop-cipher',
+            'name' => 'Anker Philippines',
+            'region' => 'PH',
+        ]);
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://open-api.tiktokglobalshop.com/product/202309/products/search*' => Http::response([
+                'code' => 0,
+                'message' => 'Success',
+                'data' => [
+                    'products' => [[
+                        'id' => 'product-id',
+                        'title' => 'Power Bank',
+                        'buyer_email' => 'customer@example.com',
+                        'shipping_address' => 'private address',
+                    ]],
+                ],
+            ]),
+        ]);
+
+        $response = $this->withToken('mcp-secret')->postJson('/api/tiktok/mcp', [
+            'jsonrpc' => '2.0',
+            'id' => 2,
+            'method' => 'tools/call',
+            'params' => [
+                'name' => 'tiktok_shop_products',
+                'arguments' => ['limit' => 20],
+            ],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('result.isError', false)
+            ->assertJsonPath('result.structuredContent.source', 'TikTok Shop Open API')
+            ->assertJsonPath('result.structuredContent.data.products.0.title', 'Power Bank')
+            ->assertJsonMissing(['buyer_email' => 'customer@example.com'])
+            ->assertJsonMissing(['shipping_address' => 'private address']);
+
+        $this->assertStringNotContainsString('access-token-value', $response->getContent());
+        $this->assertStringNotContainsString('secret-shop-cipher', $response->getContent());
+    }
+
     public function test_tiktok_callback_returns_502_when_identity_is_not_a_seller(): void
     {
         $this->configureTikTokShop();

@@ -47,6 +47,7 @@ return [
             'trim',
             explode(',', (string) env('TIKTOK_SCOPES', '')),
         ))),
+        'mcp_bearer_token' => env('TIKTOK_MCP_BEARER_TOKEN'),
     ],
 
 ];

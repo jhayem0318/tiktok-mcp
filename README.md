@@ -64,6 +64,20 @@ php artisan tiktok:shop:data promotions
 
 Commands output aggregated connection and record-count information only. They do not print tokens, shop ciphers, or customer-level fields.
 
+## Codex MCP connection
+
+The authenticated Streamable HTTP endpoint is `POST /api/tiktok/mcp`. It provides six read-only tools for analytics, orders, products, finance, returns, and promotions. Customer, address, contact, token, shop-cipher, and order-identifying fields are removed from tool results.
+
+Set a unique high-entropy value for `TIKTOK_MCP_BEARER_TOKEN` in the deployment environment. Store that same value locally in an environment variable, then connect Codex:
+
+```bash
+codex mcp add tiktok-shop \
+  --url https://your-domain.example/api/tiktok/mcp \
+  --bearer-token-env-var TIKTOK_SHOP_MCP_TOKEN
+```
+
+Never commit either bearer-token value. Restart or open a new Codex session after adding the server so its tools can be loaded.
+
 ## Deployment checklist
 
 1. Configure the web root as the repository's `public/` directory.
