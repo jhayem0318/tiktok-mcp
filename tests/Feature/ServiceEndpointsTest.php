@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\TikTokShopAuthorization;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
@@ -98,6 +99,59 @@ class ServiceEndpointsTest extends TestCase
             'message' => 'The callback does not match the configured TikTok Shop app.',
         ]);
         $this->assertDatabaseCount('tik_tok_shop_authorizations', 0);
+    }
+
+    public function test_tiktok_shop_connection_command_calls_authorized_shops_read_only(): void
+    {
+        $this->configureTikTokShop();
+        config()->set('services.tiktok.api_url', 'https://open-api.tiktokglobalshop.com');
+        CarbonImmutable::setTestNow('2026-09-01 12:00:00 UTC');
+
+        TikTokShopAuthorization::query()->create([
+            'app_key' => 'test-app-key',
+            'open_id' => 'seller-open-id',
+            'seller_name' => 'Anker Philippines',
+            'seller_base_region' => 'PH',
+            'user_type' => 0,
+            'access_token' => 'access-token-value',
+            'refresh_token' => 'refresh-token-value',
+            'access_token_expires_at' => now()->addWeek(),
+            'refresh_token_expires_at' => now()->addYear(),
+        ]);
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://open-api.tiktokglobalshop.com/authorization/202309/shops*' => Http::response([
+                'code' => 0,
+                'message' => 'Success',
+                'data' => [
+                    'shops' => [[
+                        'name' => 'Anker Philippines',
+                        'region' => 'PH',
+                        'cipher' => 'secret-shop-cipher',
+                    ]],
+                ],
+            ]),
+        ]);
+
+        $this->artisan('tiktok:shop:test')
+            ->expectsOutput('TikTok Shop read-only connection succeeded.')
+            ->expectsOutput('Authorized shops: 1')
+            ->expectsOutput('- Anker Philippines (PH)')
+            ->assertSuccessful();
+
+        Http::assertSent(function (Request $request): bool {
+            $timestamp = CarbonImmutable::now()->getTimestamp();
+            $parameters = 'app_keytest-app-keytimestamp'.$timestamp;
+            $message = 'test-app-secret/authorization/202309/shops'.$parameters.'test-app-secret';
+            $expectedSign = hash_hmac('sha256', $message, 'test-app-secret');
+
+            return $request->method() === 'GET'
+                && $request->hasHeader('x-tts-access-token', 'access-token-value')
+                && $request['app_key'] === 'test-app-key'
+                && $request['timestamp'] === $timestamp
+                && $request['sign'] === $expectedSign;
+        });
     }
 
     public function test_tiktok_callback_returns_502_when_identity_is_not_a_seller(): void
