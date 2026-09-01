@@ -239,7 +239,7 @@ class ServiceEndpointsTest extends TestCase
 
         Http::preventStrayRequests();
         Http::fake([
-            'https://open-api.tiktokglobalshop.com/product/202309/products/search*' => Http::response([
+            'https://open-api.tiktokglobalshop.com/product/202502/products/search*' => Http::response([
                 'code' => 0,
                 'message' => 'Success',
                 'data' => ['products' => [['id' => 'product-id'], ['id' => 'product-id-2']]],
@@ -310,7 +310,7 @@ class ServiceEndpointsTest extends TestCase
 
         Http::preventStrayRequests();
         Http::fake([
-            'https://open-api.tiktokglobalshop.com/product/202309/products/search*' => Http::response([
+            'https://open-api.tiktokglobalshop.com/product/202502/products/search*' => Http::response([
                 'code' => 0,
                 'message' => 'Success',
                 'data' => [

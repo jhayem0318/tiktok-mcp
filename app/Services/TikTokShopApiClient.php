@@ -37,7 +37,9 @@ class TikTokShopApiClient
     /** @return array<string, mixed> */
     public function products(TikTokShop $shop, int $pageSize = 20): array
     {
-        return $this->shopRequest($shop, 'POST', '/product/202309/products/search', ['page_size' => $pageSize]);
+        return $this->shopRequest($shop, 'POST', '/product/202502/products/search', ['page_size' => $pageSize], [
+            'status' => 'ALL',
+        ]);
     }
 
     /** @return array<string, mixed> */
