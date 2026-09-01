@@ -142,6 +142,10 @@ class TikTokShopApiClient
             throw new TikTokShopApiException('TikTok Shop API rejected the request: '.$message);
         }
 
+        if (is_string($payload['request_id'] ?? null) && $payload['request_id'] !== '') {
+            $data['_request_id'] = $payload['request_id'];
+        }
+
         return $data;
     }
 

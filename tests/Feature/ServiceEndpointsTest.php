@@ -242,6 +242,7 @@ class ServiceEndpointsTest extends TestCase
             'https://open-api.tiktokglobalshop.com/product/202502/products/search*' => Http::response([
                 'code' => 0,
                 'message' => 'Success',
+                'request_id' => 'safe-request-id',
                 'data' => ['products' => [['id' => 'product-id'], ['id' => 'product-id-2']]],
             ]),
         ]);
@@ -313,6 +314,7 @@ class ServiceEndpointsTest extends TestCase
             'https://open-api.tiktokglobalshop.com/product/202502/products/search*' => Http::response([
                 'code' => 0,
                 'message' => 'Success',
+                'request_id' => 'safe-mcp-request-id',
                 'data' => [
                     'products' => [[
                         'id' => 'product-id',
@@ -337,6 +339,7 @@ class ServiceEndpointsTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('result.isError', false)
             ->assertJsonPath('result.structuredContent.source', 'TikTok Shop Open API')
+            ->assertJsonPath('result.structuredContent.data._request_id', 'safe-mcp-request-id')
             ->assertJsonPath('result.structuredContent.data.products.0.title', 'Power Bank')
             ->assertJsonMissing(['buyer_email' => 'customer@example.com'])
             ->assertJsonMissing(['shipping_address' => 'private address']);
