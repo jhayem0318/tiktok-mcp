@@ -17,8 +17,8 @@ return new class extends Migration
             $table->unsignedTinyInteger('user_type');
             $table->text('access_token');
             $table->text('refresh_token');
-            $table->timestamp('access_token_expires_at');
-            $table->timestamp('refresh_token_expires_at');
+            $table->dateTime('access_token_expires_at');
+            $table->dateTime('refresh_token_expires_at');
             $table->json('granted_scopes')->nullable();
             $table->timestamps();
 
