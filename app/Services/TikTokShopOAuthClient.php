@@ -14,9 +14,29 @@ class TikTokShopOAuthClient
      */
     public function exchangeAuthorizationCode(string $authorizationCode): array
     {
+        return $this->requestToken(config('services.tiktok.token_url'), [
+            'auth_code' => $authorizationCode,
+            'grant_type' => 'authorized_code',
+        ]);
+    }
+
+    /** @return array<string, mixed> */
+    public function refreshAccessToken(string $refreshToken): array
+    {
+        return $this->requestToken(config('services.tiktok.refresh_url'), [
+            'refresh_token' => $refreshToken,
+            'grant_type' => 'refresh_token',
+        ]);
+    }
+
+    /**
+     * @param  array<string, string>  $parameters
+     * @return array<string, mixed>
+     */
+    private function requestToken(mixed $tokenUrl, array $parameters): array
+    {
         $appKey = config('services.tiktok.app_key');
         $appSecret = config('services.tiktok.app_secret');
-        $tokenUrl = config('services.tiktok.token_url');
 
         if (! is_string($appKey) || $appKey === ''
             || ! is_string($appSecret) || $appSecret === ''
@@ -31,8 +51,7 @@ class TikTokShopOAuthClient
                 ->get($tokenUrl, [
                     'app_key' => $appKey,
                     'app_secret' => $appSecret,
-                    'auth_code' => $authorizationCode,
-                    'grant_type' => 'authorized_code',
+                    ...$parameters,
                 ])
                 ->throw();
         } catch (ConnectionException|RequestException) {

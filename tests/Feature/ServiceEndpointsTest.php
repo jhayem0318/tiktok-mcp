@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\TikTokShopAuthorization;
+use App\Models\TikTokShop;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -126,6 +127,7 @@ class ServiceEndpointsTest extends TestCase
                 'message' => 'Success',
                 'data' => [
                     'shops' => [[
+                        'id' => 'shop-id',
                         'name' => 'Anker Philippines',
                         'region' => 'PH',
                         'cipher' => 'secret-shop-cipher',
@@ -140,6 +142,13 @@ class ServiceEndpointsTest extends TestCase
             ->expectsOutput('- Anker Philippines (PH)')
             ->assertSuccessful();
 
+        $shop = TikTokShop::query()->sole();
+        $this->assertSame('secret-shop-cipher', $shop->shop_cipher);
+        $this->assertNotSame(
+            'secret-shop-cipher',
+            DB::table('tik_tok_shops')->value('shop_cipher'),
+        );
+
         Http::assertSent(function (Request $request): bool {
             $timestamp = CarbonImmutable::now()->getTimestamp();
             $parameters = 'app_keytest-app-keytimestamp'.$timestamp;
@@ -152,6 +161,56 @@ class ServiceEndpointsTest extends TestCase
                 && $request['timestamp'] === $timestamp
                 && $request['sign'] === $expectedSign;
         });
+    }
+
+    public function test_tiktok_shop_refresh_command_rotates_expiring_tokens(): void
+    {
+        $this->configureTikTokShop();
+        config()->set('services.tiktok.refresh_url', 'https://auth.tiktok-shops.com/api/v2/token/refresh');
+
+        $authorization = TikTokShopAuthorization::query()->create([
+            'app_key' => 'test-app-key',
+            'open_id' => 'seller-open-id',
+            'seller_name' => 'Anker Philippines',
+            'seller_base_region' => 'PH',
+            'user_type' => 0,
+            'access_token' => 'expiring-access-token',
+            'refresh_token' => 'current-refresh-token',
+            'access_token_expires_at' => now()->subMinute(),
+            'refresh_token_expires_at' => now()->addYear(),
+        ]);
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://auth.tiktok-shops.com/api/v2/token/refresh*' => Http::response([
+                'code' => 0,
+                'message' => 'success',
+                'data' => [
+                    'access_token' => 'new-access-token',
+                    'access_token_expire_in' => now()->addWeek()->getTimestamp(),
+                    'refresh_token' => 'new-refresh-token',
+                    'refresh_token_expire_in' => now()->addYear()->getTimestamp(),
+                    'open_id' => 'seller-open-id',
+                    'seller_name' => 'Anker Philippines',
+                    'seller_base_region' => 'PH',
+                    'user_type' => 0,
+                    'granted_scopes' => ['seller.authorization.info'],
+                ],
+            ]),
+        ]);
+
+        $this->artisan('tiktok:shop:refresh')
+            ->expectsOutput('TikTok Shop token refresh check succeeded.')
+            ->assertSuccessful();
+
+        $authorization->refresh();
+        $this->assertSame('new-access-token', $authorization->access_token);
+        $this->assertSame('new-refresh-token', $authorization->refresh_token);
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://auth.tiktok-shops.com/api/v2/token/refresh'
+            && $request['app_key'] === 'test-app-key'
+            && $request['app_secret'] === 'test-app-secret'
+            && $request['refresh_token'] === 'current-refresh-token'
+            && $request['grant_type'] === 'refresh_token');
     }
 
     public function test_tiktok_callback_returns_502_when_identity_is_not_a_seller(): void
@@ -189,6 +248,7 @@ class ServiceEndpointsTest extends TestCase
             'services.tiktok.app_key' => 'test-app-key',
             'services.tiktok.app_secret' => 'test-app-secret',
             'services.tiktok.token_url' => 'https://auth.tiktok-shops.com/api/v2/token/get',
+            'services.tiktok.refresh_url' => 'https://auth.tiktok-shops.com/api/v2/token/refresh',
         ]);
     }
 }

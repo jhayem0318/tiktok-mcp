@@ -41,6 +41,7 @@ return [
         'redirect_uri' => env('TIKTOK_REDIRECT_URI'),
         'authorization_url' => env('TIKTOK_AUTHORIZATION_URL'),
         'token_url' => env('TIKTOK_TOKEN_URL', 'https://auth.tiktok-shops.com/api/v2/token/get'),
+        'refresh_url' => env('TIKTOK_REFRESH_URL', 'https://auth.tiktok-shops.com/api/v2/token/refresh'),
         'api_url' => env('TIKTOK_API_URL', 'https://open-api.tiktokglobalshop.com'),
         'scopes' => array_values(array_filter(array_map(
             'trim',

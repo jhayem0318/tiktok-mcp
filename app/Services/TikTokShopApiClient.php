@@ -12,9 +12,14 @@ class TikTokShopApiClient
 {
     private const AUTHORIZED_SHOPS_PATH = '/authorization/202309/shops';
 
+    public function __construct(private readonly TikTokShopTokenManager $tokenManager)
+    {
+    }
+
     /** @return list<array<string, mixed>> */
     public function authorizedShops(TikTokShopAuthorization $authorization): array
     {
+        $authorization = $this->tokenManager->fresh($authorization);
         $appKey = config('services.tiktok.app_key');
         $appSecret = config('services.tiktok.app_secret');
         $apiUrl = config('services.tiktok.api_url');

@@ -2,7 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Actions\StoreAuthorizedTikTokShops;
 use App\Exceptions\TikTokShopApiException;
+use App\Exceptions\TikTokAuthorizationException;
 use App\Models\TikTokShopAuthorization;
 use App\Services\TikTokShopApiClient;
 use Illuminate\Console\Command;
@@ -13,7 +15,10 @@ class TestTikTokShopConnection extends Command
 
     protected $description = 'Test read-only access to authorized TikTok Shops';
 
-    public function handle(TikTokShopApiClient $client): int
+    public function handle(
+        TikTokShopApiClient $client,
+        StoreAuthorizedTikTokShops $storeShops,
+    ): int
     {
         $authorization = TikTokShopAuthorization::query()->latest('id')->first();
 
@@ -25,7 +30,8 @@ class TestTikTokShopConnection extends Command
 
         try {
             $shops = $client->authorizedShops($authorization);
-        } catch (TikTokShopApiException $exception) {
+            $storeShops->handle($authorization, $shops);
+        } catch (TikTokAuthorizationException|TikTokShopApiException $exception) {
             $this->error($exception->getMessage());
 
             return self::FAILURE;
