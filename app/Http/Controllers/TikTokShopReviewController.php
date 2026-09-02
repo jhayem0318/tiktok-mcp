@@ -68,12 +68,27 @@ class TikTokShopReviewController extends Controller
     /** @return list<array<string, mixed>> */
     private function records(?array $result, ?string $dataset): array
     {
-        if ($result === null || ! in_array($dataset, ['products', 'orders'], true)) {
+        if ($result === null || $dataset === null) {
             return [];
         }
 
-        $records = Arr::get($result, 'data.'.$dataset, []);
+        $keys = match ($dataset) {
+            'analytics' => ['shop_products', 'products', 'performance', 'records'],
+            'orders' => ['orders'],
+            'products' => ['products'],
+            'finance' => ['statements'],
+            'returns' => ['returns'],
+            'promotions' => ['activities'],
+        };
 
-        return is_array($records) ? array_values(array_filter($records, 'is_array')) : [];
+        foreach ($keys as $key) {
+            $records = Arr::get($result, 'data.'.$key);
+
+            if (is_array($records)) {
+                return array_values(array_filter($records, 'is_array'));
+            }
+        }
+
+        return [];
     }
 }

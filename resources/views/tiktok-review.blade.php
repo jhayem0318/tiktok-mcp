@@ -117,47 +117,45 @@
                             <span class="pill">READ ONLY</span>
                         </div>
 
-                        @if (in_array($selectedDataset, ['products', 'orders'], true))
-                            <div class="result">
-                                <header>
-                                    <strong>Synchronized {{ $selectedDataset }}</strong>
-                                    <span>{{ count($records) }} record(s)</span>
-                                </header>
-                                @if (count($records) === 0)
-                                    <div class="empty">
-                                        <strong>No {{ $selectedDataset }} found in this sandbox shop</strong>
-                                        <p>Add sandbox {{ $selectedDataset === 'products' ? 'products' : 'orders' }} in TikTok Shop, then run the synchronization again.</p>
-                                    </div>
-                                @else
-                                    <div class="table-wrap">
-                                        <table>
-                                            <thead>
-                                                <tr>
-                                                    <th>TikTok Shop {{ $selectedDataset === 'products' ? 'Product' : 'Order' }} ID</th>
-                                                    <th>{{ $selectedDataset === 'products' ? 'Product' : 'Order' }}</th>
-                                                    <th>Status</th>
-                                                    <th>Synced from</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach ($records as $record)
-                                                    <tr>
-                                                        <td><code>{{ $record['id'] ?? $record[$selectedDataset === 'products' ? 'product_id' : 'order_id'] ?? 'Unavailable' }}</code></td>
-                                                        <td>{{ $record['title'] ?? $record['product_name'] ?? ($selectedDataset === 'orders' ? count($record['line_items'] ?? []) . ' line item(s)' : 'TikTok Shop product') }}</td>
-                                                        <td><span class="pill">{{ $record['status'] ?? 'SYNCED' }}</span></td>
-                                                        <td>TikTok Shop Open API</td>
-                                                    </tr>
-                                                @endforeach
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                @endif
-                            </div>
-                        @endif
-
                         <div class="result">
-                            <header><strong>Sanitized synchronization response</strong><span>Source: TikTok Shop Open API</span></header>
-                            <pre>{{ json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) }}</pre>
+                            <header>
+                                <strong>Synchronized {{ $selectedDataset }}</strong>
+                                <span>{{ count($records) }} record(s)</span>
+                            </header>
+                            @if (count($records) === 0)
+                                <div class="empty">
+                                    <strong>No {{ $selectedDataset }} records are currently available</strong>
+                                    <p>The TikTok Shop API connection succeeded, but this sandbox shop has no matching {{ $selectedDataset }} activity for the selected period.</p>
+                                </div>
+                            @else
+                                <div class="table-wrap">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Record</th>
+                                                <th>Details</th>
+                                                <th>Status / value</th>
+                                                <th>Source</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach ($records as $record)
+                                                @php
+                                                    $recordId = $record['id'] ?? $record['product_id'] ?? $record['order_id'] ?? $record['return_id'] ?? $record['statement_id'] ?? $record['activity_id'] ?? $record['promotion_id'] ?? 'Available';
+                                                    $details = $record['title'] ?? $record['product_name'] ?? $record['name'] ?? $record['type'] ?? ($selectedDataset === 'orders' ? count($record['line_items'] ?? []) . ' line item(s)' : ucfirst($selectedDataset) . ' record');
+                                                    $value = $record['status'] ?? $record['gmv'] ?? $record['amount'] ?? $record['total_amount'] ?? $record['revenue'] ?? 'SYNCED';
+                                                @endphp
+                                                <tr>
+                                                    <td><code>{{ is_scalar($recordId) ? $recordId : 'Available' }}</code></td>
+                                                    <td>{{ is_scalar($details) ? $details : ucfirst($selectedDataset) . ' record' }}</td>
+                                                    <td><span class="pill">{{ is_scalar($value) ? $value : 'SYNCED' }}</span></td>
+                                                    <td>TikTok Shop Open API</td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            @endif
                         </div>
                     @endif
                 </section>

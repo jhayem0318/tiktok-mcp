@@ -434,6 +434,7 @@ class ServiceEndpointsTest extends TestCase
             ->assertDontSeeText('Anker Philippines')
             ->assertSeeText('product-id')
             ->assertSeeText('Power Bank')
+            ->assertDontSeeText('Sanitized synchronization response')
             ->assertDontSeeText('customer@example.com')
             ->assertDontSeeText('private address')
             ->assertDontSeeText('access-token-value')
