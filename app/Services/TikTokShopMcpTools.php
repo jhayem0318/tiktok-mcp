@@ -88,6 +88,37 @@ class TikTokShopMcpTools
      */
     public function callForShop(string $name, array $arguments, TikTokShop $shop): array
     {
+        return $this->callForShopWithRedaction($name, $arguments, $shop, false);
+    }
+
+    /**
+     * Return reviewer evidence for a TikTok sandbox shop. Resource identifiers are
+     * retained so TikTok can verify the integration; all customer fields remain
+     * redacted. Production shops are intentionally rejected.
+     *
+     * @param  array<string, mixed>  $arguments
+     * @return array<string, mixed>
+     */
+    public function callForReview(string $name, array $arguments, TikTokShop $shop): array
+    {
+        if (! str_starts_with(strtoupper($shop->name), 'SANDBOX')) {
+            throw new InvalidArgumentException('Reviewer evidence is available only for a TikTok sandbox shop.');
+        }
+
+        return $this->callForShopWithRedaction($name, $arguments, $shop, true);
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     * @return array<string, mixed>
+     */
+    private function callForShopWithRedaction(
+        string $name,
+        array $arguments,
+        TikTokShop $shop,
+        bool $preserveResourceIds,
+    ): array
+    {
         $dataset = str_starts_with($name, 'tiktok_shop_') ? substr($name, 12) : '';
 
         if (! in_array($dataset, self::DATASETS, true)) {
@@ -119,7 +150,7 @@ class TikTokShopMcpTools
             'currency' => 'LOCAL',
             'attribution' => 'Total Shop data; not TikTok Ads-attributed revenue.',
             'comparison_period' => null,
-            'data' => $this->redact($data, $dataset),
+            'data' => $this->redact($data, $dataset, $preserveResourceIds),
         ];
     }
 
@@ -188,7 +219,7 @@ class TikTokShopMcpTools
         return false;
     }
 
-    private function redact(mixed $value, string $path = ''): mixed
+    private function redact(mixed $value, string $path = '', bool $preserveResourceIds = false): mixed
     {
         if (! is_array($value)) {
             return $value;
@@ -201,11 +232,15 @@ class TikTokShopMcpTools
             $isOrderRecordId = $key === 'id'
                 && (str_contains($path, 'orders') || str_contains($path, 'returns'));
 
-            if ((is_string($key) && $this->isSensitive($key)) || $isOrderRecordId) {
+            $isReviewResourceId = $preserveResourceIds
+                && preg_match('/^(products\.products|orders\.orders)\.\d+$/', $path) === 1
+                && in_array($key, ['id', 'product_id', 'order_id'], true);
+
+            if (! $isReviewResourceId && ((is_string($key) && $this->isSensitive($key)) || $isOrderRecordId)) {
                 continue;
             }
 
-            $clean[$key] = $this->redact($item, $keyPath);
+            $clean[$key] = $this->redact($item, $keyPath, $preserveResourceIds);
         }
 
         return $clean;

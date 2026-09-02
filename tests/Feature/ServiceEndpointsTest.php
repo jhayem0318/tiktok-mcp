@@ -432,6 +432,7 @@ class ServiceEndpointsTest extends TestCase
             ->assertSeeText('GoCommerce TikTok Analytics')
             ->assertSeeText('SANDBOX_PH_TEST')
             ->assertDontSeeText('Anker Philippines')
+            ->assertSeeText('product-id')
             ->assertSeeText('Power Bank')
             ->assertDontSeeText('customer@example.com')
             ->assertDontSeeText('private address')

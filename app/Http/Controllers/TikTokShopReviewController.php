@@ -8,6 +8,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Arr;
 use Illuminate\Validation\Rule;
 use Throwable;
 
@@ -42,7 +43,7 @@ class TikTokShopReviewController extends Controller
                     throw new \InvalidArgumentException('No authorized TikTok Shop is stored.');
                 }
 
-                $result = $tools->callForShop('tiktok_shop_'.$validated['dataset'], [
+                $result = $tools->callForReview('tiktok_shop_'.$validated['dataset'], [
                     'start_date' => $validated['start_date'] ?? null,
                     'end_date' => $validated['end_date'] ?? null,
                     'limit' => $validated['limit'] ?? 20,
@@ -59,6 +60,20 @@ class TikTokShopReviewController extends Controller
             'shop' => $shop,
             'result' => $result,
             'error' => $error,
+            'records' => $this->records($result, $validated['dataset'] ?? null),
+            'syncedAt' => $result === null ? null : now('Asia/Manila'),
         ]);
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function records(?array $result, ?string $dataset): array
+    {
+        if ($result === null || ! in_array($dataset, ['products', 'orders'], true)) {
+            return [];
+        }
+
+        $records = Arr::get($result, 'data.'.$dataset, []);
+
+        return is_array($records) ? array_values(array_filter($records, 'is_array')) : [];
     }
 }

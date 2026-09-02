@@ -34,6 +34,17 @@
             button { border: 0; border-radius: 10px; background: linear-gradient(120deg, var(--cyan), #55c7ff); color: #061015; cursor: pointer; font-weight: 900; padding: 12px 18px; }
             .result { margin-top: 18px; overflow: hidden; }
             .result header { display: flex; justify-content: space-between; gap: 16px; padding: 18px 20px; border-bottom: 1px solid var(--line); }
+            .syncbar { display: flex; justify-content: space-between; gap: 18px; align-items: center; margin-top: 18px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 14px; background: #0c111a; }
+            .syncbar strong { display: block; font-size: 17px; }
+            .syncbar p { font-size: 13px; }
+            .table-wrap { overflow-x: auto; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+            th { color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+            td code { color: var(--cyan); font-size: 12px; }
+            .empty { padding: 28px 20px; text-align: center; }
+            .empty strong { display: block; margin-bottom: 5px; }
+            .pill { display: inline-block; padding: 3px 8px; border-radius: 999px; background: rgba(84,227,142,.12); color: #76efa4; font-size: 11px; font-weight: 800; }
             pre { max-height: 620px; margin: 0; overflow: auto; padding: 20px; background: #090d14; color: #d8e1ef; font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
             .notice { margin-top: 16px; border-left: 3px solid var(--pink); padding: 12px 14px; background: rgba(254,44,85,.08); color: #ffc3cf; }
             footer { margin-top: 24px; color: #758095; font-size: 12px; }
@@ -52,7 +63,7 @@
                 <div>
                     <div class="eyebrow">TikTok Shop app review</div>
                     <h1>GoCommerce TikTok Analytics</h1>
-                    <p>A read-only commercial intelligence service for seller-owned TikTok Shop data. Customer identity, addresses, contact details, order identifiers, shop ciphers, and access tokens are removed before results are displayed.</p>
+                    <p>A read-only commercial intelligence service that synchronizes seller-owned TikTok Shop data. Customer identity, addresses, contact details, shop ciphers, and access tokens are removed before results are displayed. Sandbox product and order IDs remain visible for TikTok verification.</p>
                 </div>
                 <div class="status">
                     <span class="dot"></span>API connection
@@ -63,12 +74,12 @@
 
             <section class="panel">
                 <div class="eyebrow">Read-only capabilities</div>
-                <h2>Choose a dataset to test</h2>
-                <p>Every action below retrieves data only. This application cannot create, update, publish, fulfill, cancel, refund, or delete TikTok Shop resources.</p>
+                <h2>Synchronize data from TikTok Shop</h2>
+                <p>Choose a dataset and retrieve the latest records directly from TikTok Shop Open API. This application cannot create, update, publish, fulfill, cancel, refund, or delete TikTok Shop resources.</p>
                 <div class="grid">
                     @foreach ($datasets as $dataset)
                         <a class="dataset" href="{{ route('tiktok.review', ['dataset' => $dataset]) }}">
-                            <span>GET · TikTok Shop Open API</span>
+                            <span>Read-only sync · TikTok Shop Open API</span>
                             <strong>{{ $dataset }}</strong>
                             <small>{{ match ($dataset) {
                                 'analytics' => 'GMV and product performance',
@@ -85,21 +96,67 @@
 
             @if ($selectedDataset)
                 <section class="panel">
-                    <div class="eyebrow">Test query</div>
-                    <h2>{{ ucfirst($selectedDataset) }}</h2>
+                    <div class="eyebrow">TikTok Shop synchronization</div>
+                    <h2>{{ ucfirst($selectedDataset) }} sync</h2>
                     <form method="GET" action="{{ route('tiktok.review') }}">
                         <input type="hidden" name="dataset" value="{{ $selectedDataset }}">
                         <label>Start date<input type="date" name="start_date" value="{{ request('start_date') }}"></label>
                         <label>End date (exclusive)<input type="date" name="end_date" value="{{ request('end_date') }}"></label>
                         <label>Record limit<input type="number" name="limit" min="1" max="100" value="{{ request('limit', 20) }}"></label>
-                        <button type="submit">Run read-only test</button>
+                        <button type="submit">Sync from TikTok Shop</button>
                     </form>
 
                     @if ($error)
                         <div class="notice">{{ $error }}</div>
                     @elseif ($result)
+                        <div class="syncbar">
+                            <div>
+                                <strong><span class="dot"></span>Synchronization completed</strong>
+                                <p>Source: TikTok Shop Open API · {{ $syncedAt?->format('M j, Y g:i:s A') }} Asia/Manila</p>
+                            </div>
+                            <span class="pill">READ ONLY</span>
+                        </div>
+
+                        @if (in_array($selectedDataset, ['products', 'orders'], true))
+                            <div class="result">
+                                <header>
+                                    <strong>Synchronized {{ $selectedDataset }}</strong>
+                                    <span>{{ count($records) }} record(s)</span>
+                                </header>
+                                @if (count($records) === 0)
+                                    <div class="empty">
+                                        <strong>No {{ $selectedDataset }} found in this sandbox shop</strong>
+                                        <p>Add sandbox {{ $selectedDataset === 'products' ? 'products' : 'orders' }} in TikTok Shop, then run the synchronization again.</p>
+                                    </div>
+                                @else
+                                    <div class="table-wrap">
+                                        <table>
+                                            <thead>
+                                                <tr>
+                                                    <th>TikTok Shop {{ $selectedDataset === 'products' ? 'Product' : 'Order' }} ID</th>
+                                                    <th>{{ $selectedDataset === 'products' ? 'Product' : 'Order' }}</th>
+                                                    <th>Status</th>
+                                                    <th>Synced from</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach ($records as $record)
+                                                    <tr>
+                                                        <td><code>{{ $record['id'] ?? $record[$selectedDataset === 'products' ? 'product_id' : 'order_id'] ?? 'Unavailable' }}</code></td>
+                                                        <td>{{ $record['title'] ?? $record['product_name'] ?? ($selectedDataset === 'orders' ? count($record['line_items'] ?? []) . ' line item(s)' : 'TikTok Shop product') }}</td>
+                                                        <td><span class="pill">{{ $record['status'] ?? 'SYNCED' }}</span></td>
+                                                        <td>TikTok Shop Open API</td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                @endif
+                            </div>
+                        @endif
+
                         <div class="result">
-                            <header><strong>Sanitized API response</strong><span>Source: TikTok Shop Open API</span></header>
+                            <header><strong>Sanitized synchronization response</strong><span>Source: TikTok Shop Open API</span></header>
                             <pre>{{ json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) }}</pre>
                         </div>
                     @endif
