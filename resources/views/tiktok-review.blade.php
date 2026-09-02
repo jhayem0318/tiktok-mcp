@@ -15,6 +15,8 @@
             h2 { margin: 0 0 8px; font-size: 20px; }
             p { margin: 0; color: var(--muted); }
             .hero { display: grid; grid-template-columns: 1.5fr .8fr; gap: 24px; align-items: end; margin-bottom: 26px; }
+            .topbar { display: flex; justify-content: flex-end; margin-bottom: 20px; }
+            .logout { border: 1px solid var(--line); background: transparent; color: var(--muted); font-weight: 700; padding: 8px 12px; }
             .status, .panel, .dataset, .result { border: 1px solid var(--line); border-radius: 18px; background: color-mix(in srgb, var(--panel) 93%, transparent); box-shadow: 0 18px 45px rgba(0,0,0,.18); }
             .status { padding: 20px; }
             .status strong { display: block; margin-top: 4px; font-size: 18px; }
@@ -40,6 +42,12 @@
     </head>
     <body>
         <main>
+            <div class="topbar">
+                <form method="POST" action="{{ route('tiktok.review.logout') }}">
+                    @csrf
+                    <button class="logout" type="submit">Sign out</button>
+                </form>
+            </div>
             <section class="hero">
                 <div>
                     <div class="eyebrow">TikTok Shop app review</div>

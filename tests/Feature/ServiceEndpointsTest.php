@@ -350,7 +350,7 @@ class ServiceEndpointsTest extends TestCase
 
     public function test_tiktok_review_page_requires_configured_reviewer_credentials(): void
     {
-        $this->get('/tiktok/review')
+        $this->get('/tiktok/review/login')
             ->assertServiceUnavailable()
             ->assertSeeText('TikTok review access is not configured.');
 
@@ -360,8 +360,16 @@ class ServiceEndpointsTest extends TestCase
         ]);
 
         $this->get('/tiktok/review')
-            ->assertUnauthorized()
-            ->assertHeader('WWW-Authenticate', 'Basic realm="GoCommerce TikTok Analytics Review"');
+            ->assertRedirect('/tiktok/review/login');
+
+        $this->get('/tiktok/review/login')
+            ->assertOk()
+            ->assertSeeText('Reviewer sign in');
+
+        $this->post('/tiktok/review/login', [
+            'username' => 'reviewer',
+            'password' => 'review-password',
+        ])->assertRedirect('/tiktok/review');
     }
 
     public function test_tiktok_review_page_displays_only_redacted_read_only_data(): void
@@ -409,8 +417,8 @@ class ServiceEndpointsTest extends TestCase
             ]),
         ]);
 
-        $response = $this->withHeaders([
-            'Authorization' => 'Basic '.base64_encode('reviewer:review-password'),
+        $response = $this->withSession([
+            'tiktok_review_authenticated' => true,
         ])->get('/tiktok/review?dataset=products&limit=20');
 
         $response->assertOk()

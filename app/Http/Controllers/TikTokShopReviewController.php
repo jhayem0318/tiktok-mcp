@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\TikTokShop;
 use App\Services\TikTokShopMcpTools;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
@@ -14,12 +15,10 @@ class TikTokShopReviewController extends Controller
 {
     private const DATASETS = ['analytics', 'orders', 'products', 'finance', 'returns', 'promotions'];
 
-    public function __invoke(Request $request, TikTokShopMcpTools $tools): View|Response
+    public function __invoke(Request $request, TikTokShopMcpTools $tools): View|RedirectResponse|Response
     {
-        $authenticationFailure = $this->authenticationFailure($request);
-
-        if ($authenticationFailure !== null) {
-            return $authenticationFailure;
+        if (! $request->session()->boolean('tiktok_review_authenticated')) {
+            return redirect()->route('tiktok.review.login');
         }
 
         $validated = $request->validate([
@@ -52,26 +51,5 @@ class TikTokShopReviewController extends Controller
             'result' => $result,
             'error' => $error,
         ]);
-    }
-
-    private function authenticationFailure(Request $request): ?Response
-    {
-        $expectedUsername = (string) config('services.tiktok.review_username');
-        $expectedPassword = (string) config('services.tiktok.review_password');
-
-        if ($expectedUsername === '' || $expectedPassword === '') {
-            return response('TikTok review access is not configured.', 503);
-        }
-
-        $validUsername = hash_equals($expectedUsername, (string) $request->getUser());
-        $validPassword = hash_equals($expectedPassword, (string) $request->getPassword());
-
-        if (! $validUsername || ! $validPassword) {
-            return response('Reviewer authentication required.', 401, [
-                'WWW-Authenticate' => 'Basic realm="GoCommerce TikTok Analytics Review"',
-            ]);
-        }
-
-        return null;
     }
 }
