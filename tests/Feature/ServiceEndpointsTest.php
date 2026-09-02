@@ -384,7 +384,7 @@ class ServiceEndpointsTest extends TestCase
         $authorization = TikTokShopAuthorization::query()->create([
             'app_key' => 'test-app-key',
             'open_id' => 'seller-open-id',
-            'seller_name' => 'Development Shop',
+            'seller_name' => 'SANDBOX_PH_TEST',
             'seller_base_region' => 'PH',
             'user_type' => 0,
             'access_token' => 'access-token-value',
@@ -396,7 +396,14 @@ class ServiceEndpointsTest extends TestCase
             'tik_tok_shop_authorization_id' => $authorization->id,
             'shop_id' => 'shop-id',
             'shop_cipher' => 'secret-shop-cipher',
-            'name' => 'Development Shop',
+            'name' => 'SANDBOX_PH_TEST',
+            'region' => 'PH',
+        ]);
+        TikTokShop::query()->create([
+            'tik_tok_shop_authorization_id' => $authorization->id,
+            'shop_id' => 'production-shop-id',
+            'shop_cipher' => 'production-shop-cipher',
+            'name' => 'Anker Philippines',
             'region' => 'PH',
         ]);
 
@@ -423,6 +430,8 @@ class ServiceEndpointsTest extends TestCase
 
         $response->assertOk()
             ->assertSeeText('GoCommerce TikTok Analytics')
+            ->assertSeeText('SANDBOX_PH_TEST')
+            ->assertDontSeeText('Anker Philippines')
             ->assertSeeText('Power Bank')
             ->assertDontSeeText('customer@example.com')
             ->assertDontSeeText('private address')

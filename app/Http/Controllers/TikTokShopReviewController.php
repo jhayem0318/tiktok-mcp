@@ -30,14 +30,23 @@ class TikTokShopReviewController extends Controller
 
         $result = null;
         $error = null;
+        $shop = TikTokShop::query()
+            ->where('name', 'like', 'SANDBOX\_%')
+            ->latest('id')
+            ->first()
+            ?? TikTokShop::query()->latest('id')->first();
 
         if (isset($validated['dataset'])) {
             try {
-                $result = $tools->call('tiktok_shop_'.$validated['dataset'], [
+                if ($shop === null) {
+                    throw new \InvalidArgumentException('No authorized TikTok Shop is stored.');
+                }
+
+                $result = $tools->callForShop('tiktok_shop_'.$validated['dataset'], [
                     'start_date' => $validated['start_date'] ?? null,
                     'end_date' => $validated['end_date'] ?? null,
                     'limit' => $validated['limit'] ?? 20,
-                ]);
+                ], $shop);
             } catch (Throwable $exception) {
                 report($exception);
                 $error = 'TikTok Shop did not return data for this test. Please select another dataset or date range.';
@@ -47,7 +56,7 @@ class TikTokShopReviewController extends Controller
         return view('tiktok-review', [
             'datasets' => self::DATASETS,
             'selectedDataset' => $validated['dataset'] ?? null,
-            'shop' => TikTokShop::query()->latest('id')->first(['name', 'region']),
+            'shop' => $shop,
             'result' => $result,
             'error' => $error,
         ]);

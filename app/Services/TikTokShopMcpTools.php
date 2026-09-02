@@ -30,9 +30,7 @@ class TikTokShopMcpTools
         'user_id',
     ];
 
-    public function __construct(private readonly TikTokShopApiClient $client)
-    {
-    }
+    public function __construct(private readonly TikTokShopApiClient $client) {}
 
     /** @return list<array<string, mixed>> */
     public function definitions(): array
@@ -75,16 +73,25 @@ class TikTokShopMcpTools
      */
     public function call(string $name, array $arguments): array
     {
-        $dataset = str_starts_with($name, 'tiktok_shop_') ? substr($name, 12) : '';
-
-        if (! in_array($dataset, self::DATASETS, true)) {
-            throw new InvalidArgumentException('Unknown TikTok Shop tool.');
-        }
-
         $shop = TikTokShop::query()->latest('id')->first();
 
         if ($shop === null) {
             throw new InvalidArgumentException('No authorized TikTok Shop is stored.');
+        }
+
+        return $this->callForShop($name, $arguments, $shop);
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     * @return array<string, mixed>
+     */
+    public function callForShop(string $name, array $arguments, TikTokShop $shop): array
+    {
+        $dataset = str_starts_with($name, 'tiktok_shop_') ? substr($name, 12) : '';
+
+        if (! in_array($dataset, self::DATASETS, true)) {
+            throw new InvalidArgumentException('Unknown TikTok Shop tool.');
         }
 
         $timezone = $shop->region === 'PH' ? 'Asia/Manila' : (string) config('app.timezone', 'UTC');
