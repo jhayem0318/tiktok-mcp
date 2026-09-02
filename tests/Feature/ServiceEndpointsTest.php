@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\TikTokShopAuthorization;
 use App\Models\TikTokShop;
+use App\Models\TikTokShopAuthorization;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -346,6 +346,80 @@ class ServiceEndpointsTest extends TestCase
 
         $this->assertStringNotContainsString('access-token-value', $response->getContent());
         $this->assertStringNotContainsString('secret-shop-cipher', $response->getContent());
+    }
+
+    public function test_tiktok_review_page_requires_configured_reviewer_credentials(): void
+    {
+        $this->get('/tiktok/review')
+            ->assertServiceUnavailable()
+            ->assertSeeText('TikTok review access is not configured.');
+
+        config()->set([
+            'services.tiktok.review_username' => 'reviewer',
+            'services.tiktok.review_password' => 'review-password',
+        ]);
+
+        $this->get('/tiktok/review')
+            ->assertUnauthorized()
+            ->assertHeader('WWW-Authenticate', 'Basic realm="GoCommerce TikTok Analytics Review"');
+    }
+
+    public function test_tiktok_review_page_displays_only_redacted_read_only_data(): void
+    {
+        $this->configureTikTokShop();
+        config()->set([
+            'services.tiktok.api_url' => 'https://open-api.tiktokglobalshop.com',
+            'services.tiktok.review_username' => 'reviewer',
+            'services.tiktok.review_password' => 'review-password',
+        ]);
+
+        $authorization = TikTokShopAuthorization::query()->create([
+            'app_key' => 'test-app-key',
+            'open_id' => 'seller-open-id',
+            'seller_name' => 'Development Shop',
+            'seller_base_region' => 'PH',
+            'user_type' => 0,
+            'access_token' => 'access-token-value',
+            'refresh_token' => 'refresh-token-value',
+            'access_token_expires_at' => now()->addWeek(),
+            'refresh_token_expires_at' => now()->addYear(),
+        ]);
+        TikTokShop::query()->create([
+            'tik_tok_shop_authorization_id' => $authorization->id,
+            'shop_id' => 'shop-id',
+            'shop_cipher' => 'secret-shop-cipher',
+            'name' => 'Development Shop',
+            'region' => 'PH',
+        ]);
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://open-api.tiktokglobalshop.com/product/202502/products/search*' => Http::response([
+                'code' => 0,
+                'message' => 'Success',
+                'request_id' => 'safe-review-request-id',
+                'data' => [
+                    'products' => [[
+                        'id' => 'product-id',
+                        'title' => 'Power Bank',
+                        'buyer_email' => 'customer@example.com',
+                        'shipping_address' => 'private address',
+                    ]],
+                ],
+            ]),
+        ]);
+
+        $response = $this->withHeaders([
+            'Authorization' => 'Basic '.base64_encode('reviewer:review-password'),
+        ])->get('/tiktok/review?dataset=products&limit=20');
+
+        $response->assertOk()
+            ->assertSeeText('GoCommerce TikTok Analytics')
+            ->assertSeeText('Power Bank')
+            ->assertDontSeeText('customer@example.com')
+            ->assertDontSeeText('private address')
+            ->assertDontSeeText('access-token-value')
+            ->assertDontSeeText('secret-shop-cipher');
     }
 
     public function test_tiktok_callback_returns_502_when_identity_is_not_a_seller(): void

@@ -48,6 +48,8 @@ return [
             explode(',', (string) env('TIKTOK_SCOPES', '')),
         ))),
         'mcp_bearer_token' => env('TIKTOK_MCP_BEARER_TOKEN'),
+        'review_username' => env('TIKTOK_REVIEW_USERNAME'),
+        'review_password' => env('TIKTOK_REVIEW_PASSWORD'),
     ],
 
 ];
