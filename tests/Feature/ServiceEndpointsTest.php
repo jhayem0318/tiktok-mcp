@@ -441,6 +441,24 @@ class ServiceEndpointsTest extends TestCase
             ->assertDontSeeText('secret-shop-cipher');
     }
 
+    public function test_tiktok_review_page_displays_return_orders_response_shape(): void
+    {
+        $controller = new \ReflectionClass(\App\Http\Controllers\TikTokShopReviewController::class);
+        $method = $controller->getMethod('records');
+        $instance = $controller->newInstanceWithoutConstructor();
+
+        $records = $method->invoke($instance, [
+            'data' => [
+                'return_orders' => [[
+                    'return_id' => 'return-1',
+                    'status' => 'RETURN_OR_REFUND_REQUEST_PENDING',
+                ]],
+            ],
+        ], 'returns');
+
+        $this->assertSame('return-1', $records[0]['return_id']);
+    }
+
     public function test_tiktok_callback_returns_502_when_identity_is_not_a_seller(): void
     {
         $this->configureTikTokShop();

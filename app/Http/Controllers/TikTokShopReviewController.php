@@ -77,15 +77,31 @@ class TikTokShopReviewController extends Controller
             'orders' => ['orders'],
             'products' => ['products'],
             'finance' => ['statements'],
-            'returns' => ['returns'],
+            'returns' => ['returns', 'return_orders'],
             'promotions' => ['activities'],
         };
 
         foreach ($keys as $key) {
             $records = Arr::get($result, 'data.'.$key);
 
-            if (is_array($records)) {
+            if (is_array($records) && array_is_list($records)) {
                 return array_values(array_filter($records, 'is_array'));
+            }
+
+            if (is_array($records) && $records !== []) {
+                return [$records];
+            }
+        }
+
+        if ($dataset === 'analytics') {
+            $summary = Arr::get($result, 'data', []);
+
+            if (is_array($summary) && $summary !== []) {
+                return [[
+                    'name' => 'Shop analytics summary',
+                    'status' => 'SYNCED',
+                    'total_count' => $summary['total_count'] ?? null,
+                ]];
             }
         }
 

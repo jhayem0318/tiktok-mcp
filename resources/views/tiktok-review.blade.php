@@ -143,7 +143,7 @@
                                                 @php
                                                     $recordId = $record['id'] ?? $record['product_id'] ?? $record['order_id'] ?? $record['return_id'] ?? $record['statement_id'] ?? $record['activity_id'] ?? $record['promotion_id'] ?? 'Available';
                                                     $details = $record['title'] ?? $record['product_name'] ?? $record['name'] ?? $record['type'] ?? ($selectedDataset === 'orders' ? count($record['line_items'] ?? []) . ' line item(s)' : ucfirst($selectedDataset) . ' record');
-                                                    $value = $record['status'] ?? $record['gmv'] ?? $record['amount'] ?? $record['total_amount'] ?? $record['revenue'] ?? 'SYNCED';
+                                                    $value = $record['status'] ?? $record['gmv'] ?? $record['amount'] ?? $record['total_amount'] ?? $record['revenue'] ?? (isset($record['total_count']) ? $record['total_count'] . ' record(s)' : 'SYNCED');
                                                 @endphp
                                                 <tr>
                                                     <td><code>{{ is_scalar($recordId) ? $recordId : 'Available' }}</code></td>
