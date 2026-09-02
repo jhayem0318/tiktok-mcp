@@ -17,7 +17,7 @@ class TikTokShopReviewController extends Controller
 
     public function __invoke(Request $request, TikTokShopMcpTools $tools): View|RedirectResponse|Response
     {
-        if (! $request->session()->boolean('tiktok_review_authenticated')) {
+        if (! (bool) $request->session()->get('tiktok_review_authenticated', false)) {
             return redirect()->route('tiktok.review.login');
         }
 

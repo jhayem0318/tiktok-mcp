@@ -15,7 +15,7 @@ class TikTokShopReviewLoginController extends Controller
             return response('TikTok review access is not configured.', 503);
         }
 
-        if ($request->session()->boolean('tiktok_review_authenticated')) {
+        if ((bool) $request->session()->get('tiktok_review_authenticated', false)) {
             return redirect()->route('tiktok.review');
         }
 
