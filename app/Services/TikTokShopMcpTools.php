@@ -55,12 +55,10 @@ class TikTokShopMcpTools
                         'maximum' => 100,
                         'default' => 20,
                     ],
-                    ...($dataset === 'orders' ? [
-                        'page_token' => [
-                            'type' => 'string',
-                            'description' => 'Continuation token from the prior orders response. Omit for the first page and complete status summary.',
-                        ],
-                    ] : []),
+                    'page_token' => [
+                        'type' => 'string',
+                        'description' => 'Continuation token from the prior response. Omit for the first page and complete dataset summary.',
+                    ],
                     'seller_center_count' => [
                         'type' => 'number',
                         'minimum' => 0,
@@ -148,17 +146,17 @@ class TikTokShopMcpTools
         $timezone = $shop->region === 'PH' ? 'Asia/Manila' : (string) config('app.timezone', 'UTC');
         [$start, $end] = $this->dateRange($arguments, $timezone);
         $limit = max(1, min(100, (int) ($arguments['limit'] ?? 20)));
-        $pageToken = $dataset === 'orders' && is_string($arguments['page_token'] ?? null)
+        $pageToken = is_string($arguments['page_token'] ?? null)
             ? $arguments['page_token']
             : null;
 
         $data = match ($dataset) {
-            'analytics' => $this->client->analytics($shop, $start->toDateString(), $end->toDateString(), $limit),
+            'analytics' => $this->client->analytics($shop, $start->toDateString(), $end->toDateString(), $limit, $pageToken),
             'orders' => $this->client->orders($shop, $start->getTimestamp(), $end->getTimestamp(), $limit, $pageToken),
-            'products' => $this->client->products($shop, $limit),
-            'finance' => $this->client->finance($shop, $start->getTimestamp(), $end->getTimestamp(), $limit),
-            'returns' => $this->client->returns($shop, $start->getTimestamp(), $end->getTimestamp(), $limit),
-            'promotions' => $this->client->promotions($shop, $limit),
+            'products' => $this->client->products($shop, $limit, $pageToken),
+            'finance' => $this->client->finance($shop, $start->getTimestamp(), $end->getTimestamp(), $limit, $pageToken),
+            'returns' => $this->client->returns($shop, $start->getTimestamp(), $end->getTimestamp(), $limit, $pageToken),
+            'promotions' => $this->client->promotions($shop, $limit, $pageToken),
         };
         $reconciliation = $this->reconciliation($dataset, $data, $arguments);
 

@@ -142,8 +142,12 @@ class TikTokShopApiClient
     }
 
     /** @return array<string, mixed> */
-    public function products(TikTokShop $shop, int $pageSize = 20): array
+    public function products(TikTokShop $shop, int $pageSize = 20, ?string $pageToken = null): array
     {
+        if ($pageToken !== null && $pageToken !== '') {
+            return $this->collectionPage($shop, 'POST', '/product/202502/products/search', 'products', $pageSize, $pageToken, [], ['status' => 'ALL']);
+        }
+
         [$result, $products] = $this->paginatedCollection(
             $shop, 'POST', '/product/202502/products/search', 'products', $pageSize,
             [], ['status' => 'ALL'],
@@ -157,8 +161,12 @@ class TikTokShopApiClient
     }
 
     /** @return array<string, mixed> */
-    public function returns(TikTokShop $shop, int $start, int $end, int $pageSize = 20): array
+    public function returns(TikTokShop $shop, int $start, int $end, int $pageSize = 20, ?string $pageToken = null): array
     {
+        if ($pageToken !== null && $pageToken !== '') {
+            return $this->collectionPage($shop, 'POST', '/return_refund/202309/returns/search', 'return_orders', $pageSize, $pageToken, [], ['create_time_ge' => $start, 'create_time_lt' => $end], false, 50);
+        }
+
         [$result, $returns] = $this->paginatedCollection(
             $shop, 'POST', '/return_refund/202309/returns/search', 'return_orders', $pageSize,
             [], ['create_time_ge' => $start, 'create_time_lt' => $end], false, 50,
@@ -174,8 +182,12 @@ class TikTokShopApiClient
     }
 
     /** @return array<string, mixed> */
-    public function promotions(TikTokShop $shop, int $pageSize = 20): array
+    public function promotions(TikTokShop $shop, int $pageSize = 20, ?string $pageToken = null): array
     {
+        if ($pageToken !== null && $pageToken !== '') {
+            return $this->collectionPage($shop, 'POST', '/promotion/202309/activities/search', 'activities', $pageSize, $pageToken, [], [], true);
+        }
+
         [$result, $activities] = $this->paginatedCollection(
             $shop, 'POST', '/promotion/202309/activities/search', 'activities', $pageSize,
             [], [], true,
@@ -190,16 +202,22 @@ class TikTokShopApiClient
     }
 
     /** @return array<string, mixed> */
-    public function finance(TikTokShop $shop, int $start, int $end, int $pageSize = 20): array
+    public function finance(TikTokShop $shop, int $start, int $end, int $pageSize = 20, ?string $pageToken = null): array
     {
+        $query = [
+            'statement_time_ge' => $start,
+            'statement_time_lt' => $end,
+            'sort_field' => 'statement_time',
+            'sort_order' => 'DESC',
+        ];
+
+        if ($pageToken !== null && $pageToken !== '') {
+            return $this->collectionPage($shop, 'GET', '/finance/202309/statements', 'statements', $pageSize, $pageToken, $query);
+        }
+
         [$result, $statements] = $this->paginatedCollection(
             $shop, 'GET', '/finance/202309/statements', 'statements', $pageSize,
-            [
-                'statement_time_ge' => $start,
-                'statement_time_lt' => $end,
-                'sort_field' => 'statement_time',
-                'sort_order' => 'DESC',
-            ],
+            $query,
         );
         $result['finance_summary'] = [
             'statement_records' => count($statements),
@@ -216,18 +234,24 @@ class TikTokShopApiClient
     }
 
     /** @return array<string, mixed> */
-    public function analytics(TikTokShop $shop, string $startDate, string $endDate, int $pageSize = 20): array
+    public function analytics(TikTokShop $shop, string $startDate, string $endDate, int $pageSize = 20, ?string $pageToken = null): array
     {
+        $query = [
+            'start_date_ge' => $startDate,
+            'end_date_lt' => $endDate,
+            'currency' => 'LOCAL',
+            'product_status_filter' => 'ALL',
+            'sort_field' => 'gmv',
+            'sort_order' => 'DESC',
+        ];
+
+        if ($pageToken !== null && $pageToken !== '') {
+            return $this->collectionPage($shop, 'GET', '/analytics/202605/shop_products/performance', 'products', $pageSize, $pageToken, $query);
+        }
+
         [$result, $products] = $this->paginatedCollection(
             $shop, 'GET', '/analytics/202605/shop_products/performance', 'products', $pageSize,
-            [
-                'start_date_ge' => $startDate,
-                'end_date_lt' => $endDate,
-                'currency' => 'LOCAL',
-                'product_status_filter' => 'ALL',
-                'sort_field' => 'gmv',
-                'sort_order' => 'DESC',
-            ],
+            $query,
         );
         $result['performance_summary'] = [
             'product_records' => count($products),
@@ -267,6 +291,7 @@ class TikTokShopApiClient
         $requestId = null;
         $reportedTotal = null;
         $complete = false;
+        $continuationToken = '';
 
         while ($pagesFetched < self::MAX_PAGES) {
             $pageQuery = $query;
@@ -309,6 +334,10 @@ class TikTokShopApiClient
 
             $nextToken = is_string($page['next_page_token'] ?? null) ? $page['next_page_token'] : '';
 
+            if ($pagesFetched === 1) {
+                $continuationToken = $nextToken;
+            }
+
             if ($nextToken === '') {
                 $complete = true;
                 break;
@@ -334,8 +363,8 @@ class TikTokShopApiClient
             ],
         ];
 
-        if (! $complete && $pageToken !== '') {
-            $result['next_page_token'] = $pageToken;
+        if ($continuationToken !== '') {
+            $result['next_page_token'] = $continuationToken;
         }
 
         if ($requestId !== null) {
@@ -343,6 +372,43 @@ class TikTokShopApiClient
         }
 
         return [$result, $records];
+    }
+
+    /**
+     * @param array<string, int|string> $query
+     * @param array<string, mixed> $body
+     * @return array<string, mixed>
+     */
+    private function collectionPage(
+        TikTokShop $shop,
+        string $method,
+        string $path,
+        string $collectionKey,
+        int $pageSize,
+        string $pageToken,
+        array $query = [],
+        array $body = [],
+        bool $paginationInBody = false,
+        int $apiPageSize = 100,
+    ): array {
+        $pagination = ['page_size' => min($apiPageSize, max(1, min(100, $pageSize))), 'page_token' => $pageToken];
+        $page = $this->shopRequest(
+            $shop,
+            $method,
+            $path,
+            $paginationInBody ? $query : [...$query, ...$pagination],
+            $paginationInBody ? [...$body, ...$pagination] : $body,
+        );
+        $records = is_array($page[$collectionKey] ?? null) ? $page[$collectionKey] : [];
+
+        $page['pagination'] = [
+            'records_scanned' => count($records),
+            'pages_fetched' => 1,
+            'complete' => false,
+            'page_only' => true,
+        ];
+
+        return $page;
     }
 
     /** @param list<array<string, mixed>> $records */
