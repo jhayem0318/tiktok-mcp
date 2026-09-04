@@ -145,6 +145,7 @@ class TikTokShopApiClient
         $result['return_summary'] = [
             'counts_by_status' => $this->countBy($returns, 'return_status'),
             'return_records' => count($returns),
+            'currency' => $this->nestedString($returns, ['refund_amount', 'currency']) ?? 'LOCAL',
             'refund_amount' => $this->sumMoney($returns, 'refund_amount'),
         ];
 
@@ -348,7 +349,16 @@ class TikTokShopApiClient
     /** @param list<array<string, mixed>> $records */
     private function sumMoney(array $records, string $key): float
     {
-        return $this->sumNestedMoney($records, [$key]);
+        $sum = 0.0;
+        foreach ($records as $record) {
+            $value = $record[$key] ?? null;
+            if (is_array($value)) {
+                $value = $value['amount'] ?? $value['refund_total'] ?? null;
+            }
+            $sum += is_numeric($value) ? (float) $value : 0.0;
+        }
+
+        return round($sum, 2);
     }
 
     /** @param list<array<string, mixed>> $records */

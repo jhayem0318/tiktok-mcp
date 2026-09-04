@@ -315,6 +315,7 @@ class TikTokShopMcpTools
 
         foreach ($value as $key => $item) {
             $keyPath = $path.'.'.(string) $key;
+            $isAggregateLabel = str_contains($path, 'summary.counts');
             $isOrderRecordId = $key === 'id'
                 && (str_contains($path, 'orders') || str_contains($path, 'returns'));
 
@@ -322,7 +323,7 @@ class TikTokShopMcpTools
                 && preg_match('/^(products\.products|orders\.orders)\.\d+$/', $path) === 1
                 && in_array($key, ['id', 'product_id', 'order_id'], true);
 
-            if (! $isReviewResourceId && ((is_string($key) && $this->isSensitive($key)) || $isOrderRecordId)) {
+            if (! $isReviewResourceId && ((! $isAggregateLabel && is_string($key) && $this->isSensitive($key)) || $isOrderRecordId)) {
                 continue;
             }
 
