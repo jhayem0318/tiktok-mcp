@@ -117,6 +117,7 @@ class TikTokShopApiClient
         }
 
         ksort($statusCounts);
+        $reportedTotalMatches = $reportedTotal === null || $reportedTotal === $recordsScanned;
 
         $result = [
             'orders' => $visibleOrders,
@@ -127,6 +128,7 @@ class TikTokShopApiClient
                 'records_scanned' => $recordsScanned,
                 'pages_fetched' => $pagesFetched,
                 'complete' => $complete,
+                'reported_total_matches' => $reportedTotalMatches,
             ],
             'order_value_summary' => [
                 'formula' => 'SUM(line_items.sale_price + line_items.platform_discount)',
@@ -134,13 +136,16 @@ class TikTokShopApiClient
                 'line_items_scanned' => $orderValueSummary['line_items_scanned'],
                 'line_items_with_complete_pricing' => $orderValueSummary['line_items_with_complete_pricing'],
                 'line_items_missing_pricing' => $orderValueSummary['line_items_missing_pricing'],
+                'reported_total_matches' => $reportedTotalMatches,
                 'currency' => count($orderValueSummary['currencies']) === 1
                     ? array_key_first($orderValueSummary['currencies'])
                     : 'LOCAL',
                 'sku_subtotal_after_discount' => round($orderValueSummary['sku_subtotal_after_discount'], 2),
                 'sku_platform_discount' => round($orderValueSummary['sku_platform_discount'], 2),
                 'calculated_gmv' => round($orderValueSummary['calculated_gmv'], 2),
-                'complete' => $complete && $orderValueSummary['line_items_missing_pricing'] === 0,
+                'complete' => $complete
+                    && $reportedTotalMatches
+                    && $orderValueSummary['line_items_missing_pricing'] === 0,
             ],
         ];
 

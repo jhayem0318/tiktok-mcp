@@ -439,11 +439,12 @@ class ServiceEndpointsTest extends TestCase
                             'status' => 'CANCELLED',
                             'line_items' => [[
                                 'sale_price' => '30',
+                                'platform_discount' => '0',
                                 'currency' => 'PHP',
                             ]],
                         ],
                     ],
-                    'total_count' => 4,
+                    'total_count' => 5,
                     'next_page_token' => '',
                 ],
             ]);
@@ -463,7 +464,7 @@ class ServiceEndpointsTest extends TestCase
         ]);
 
         $response->assertOk()
-            ->assertJsonPath('result.structuredContent.data.total_count', 4)
+            ->assertJsonPath('result.structuredContent.data.total_count', 5)
             ->assertJsonCount(1, 'result.structuredContent.data.orders')
             ->assertJsonPath('result.structuredContent.data.status_summary.counts.DELIVERED', 2)
             ->assertJsonPath('result.structuredContent.data.status_summary.counts.IN_TRANSIT', 1)
@@ -472,14 +473,16 @@ class ServiceEndpointsTest extends TestCase
             ->assertJsonPath('result.structuredContent.data.status_summary.records_scanned', 4)
             ->assertJsonPath('result.structuredContent.data.status_summary.pages_fetched', 2)
             ->assertJsonPath('result.structuredContent.data.status_summary.complete', true)
+            ->assertJsonPath('result.structuredContent.data.status_summary.reported_total_matches', false)
             ->assertJsonPath('result.structuredContent.data.order_value_summary.orders_scanned', 4)
             ->assertJsonPath('result.structuredContent.data.order_value_summary.line_items_scanned', 4)
-            ->assertJsonPath('result.structuredContent.data.order_value_summary.line_items_with_complete_pricing', 3)
-            ->assertJsonPath('result.structuredContent.data.order_value_summary.line_items_missing_pricing', 1)
+            ->assertJsonPath('result.structuredContent.data.order_value_summary.line_items_with_complete_pricing', 4)
+            ->assertJsonPath('result.structuredContent.data.order_value_summary.line_items_missing_pricing', 0)
+            ->assertJsonPath('result.structuredContent.data.order_value_summary.reported_total_matches', false)
             ->assertJsonPath('result.structuredContent.data.order_value_summary.currency', 'PHP')
-            ->assertJsonPath('result.structuredContent.data.order_value_summary.sku_subtotal_after_discount', 175)
+            ->assertJsonPath('result.structuredContent.data.order_value_summary.sku_subtotal_after_discount', 205)
             ->assertJsonPath('result.structuredContent.data.order_value_summary.sku_platform_discount', 15.5)
-            ->assertJsonPath('result.structuredContent.data.order_value_summary.calculated_gmv', 190.5)
+            ->assertJsonPath('result.structuredContent.data.order_value_summary.calculated_gmv', 220.5)
             ->assertJsonPath('result.structuredContent.data.order_value_summary.complete', false)
             ->assertJsonMissing(['id' => 'private-order-1']);
 
