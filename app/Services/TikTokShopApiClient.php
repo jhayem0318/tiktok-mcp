@@ -13,7 +13,7 @@ class TikTokShopApiClient
 {
     private const AUTHORIZED_SHOPS_PATH = '/authorization/202309/shops';
 
-    private const MAX_ORDER_PAGES = 250;
+    private const MAX_PAGES = 250;
 
     public function __construct(private readonly TikTokShopTokenManager $tokenManager)
     {
@@ -41,7 +41,7 @@ class TikTokShopApiClient
         $requestId = null;
         $complete = false;
 
-        while ($pagesFetched < self::MAX_ORDER_PAGES) {
+        while ($pagesFetched < self::MAX_PAGES) {
             $query = ['page_size' => 100];
 
             if ($pageToken !== '') {
@@ -123,53 +123,280 @@ class TikTokShopApiClient
     /** @return array<string, mixed> */
     public function products(TikTokShop $shop, int $pageSize = 20): array
     {
-        return $this->shopRequest($shop, 'POST', '/product/202502/products/search', ['page_size' => $pageSize], [
-            'status' => 'ALL',
-        ]);
+        [$result, $products] = $this->paginatedCollection(
+            $shop, 'POST', '/product/202502/products/search', 'products', $pageSize,
+            [], ['status' => 'ALL'],
+        );
+        $result['catalog_summary'] = [
+            'counts_by_status' => $this->countBy($products, 'status'),
+            'product_records' => count($products),
+        ];
+
+        return $result;
     }
 
     /** @return array<string, mixed> */
     public function returns(TikTokShop $shop, int $start, int $end, int $pageSize = 20): array
     {
-        return $this->shopRequest($shop, 'POST', '/return_refund/202309/returns/search', ['page_size' => $pageSize], [
-            'create_time_ge' => $start,
-            'create_time_lt' => $end,
-        ]);
+        [$result, $returns] = $this->paginatedCollection(
+            $shop, 'POST', '/return_refund/202309/returns/search', 'return_orders', $pageSize,
+            [], ['create_time_ge' => $start, 'create_time_lt' => $end],
+        );
+        $result['return_summary'] = [
+            'counts_by_status' => $this->countBy($returns, 'return_status'),
+            'return_records' => count($returns),
+            'refund_amount' => $this->sumMoney($returns, 'refund_amount'),
+        ];
+
+        return $result;
     }
 
     /** @return array<string, mixed> */
     public function promotions(TikTokShop $shop, int $pageSize = 20): array
     {
-        return $this->shopRequest($shop, 'POST', '/promotion/202309/activities/search', [], [
-            'page_size' => $pageSize,
-            'page_token' => '',
-        ]);
+        [$result, $activities] = $this->paginatedCollection(
+            $shop, 'POST', '/promotion/202309/activities/search', 'activities', $pageSize,
+            [], [], true,
+        );
+        $result['promotion_summary'] = [
+            'counts_by_status' => $this->countBy($activities, 'status'),
+            'counts_by_type' => $this->countBy($activities, 'activity_type'),
+            'activity_records' => count($activities),
+        ];
+
+        return $result;
     }
 
     /** @return array<string, mixed> */
     public function finance(TikTokShop $shop, int $start, int $end, int $pageSize = 20): array
     {
-        return $this->shopRequest($shop, 'GET', '/finance/202309/statements', [
-            'statement_time_ge' => $start,
-            'statement_time_lt' => $end,
-            'page_size' => $pageSize,
-            'sort_field' => 'statement_time',
-            'sort_order' => 'DESC',
-        ]);
+        [$result, $statements] = $this->paginatedCollection(
+            $shop, 'GET', '/finance/202309/statements', 'statements', $pageSize,
+            [
+                'statement_time_ge' => $start,
+                'statement_time_lt' => $end,
+                'sort_field' => 'statement_time',
+                'sort_order' => 'DESC',
+            ],
+        );
+        $result['finance_summary'] = [
+            'statement_records' => count($statements),
+            'currency' => $this->firstString($statements, 'currency') ?? 'LOCAL',
+            'revenue_amount' => $this->sumNumeric($statements, 'revenue_amount'),
+            'net_sales_amount' => $this->sumNumeric($statements, 'net_sales_amount'),
+            'fee_amount' => $this->sumNumeric($statements, 'fee_amount'),
+            'shipping_cost_amount' => $this->sumNumeric($statements, 'shipping_cost_amount'),
+            'adjustment_amount' => $this->sumNumeric($statements, 'adjustment_amount'),
+            'settlement_amount' => $this->sumNumeric($statements, 'settlement_amount'),
+        ];
+
+        return $result;
     }
 
     /** @return array<string, mixed> */
     public function analytics(TikTokShop $shop, string $startDate, string $endDate, int $pageSize = 20): array
     {
-        return $this->shopRequest($shop, 'GET', '/analytics/202605/shop_products/performance', [
-            'start_date_ge' => $startDate,
-            'end_date_lt' => $endDate,
-            'currency' => 'LOCAL',
-            'product_status_filter' => 'ALL',
-            'page_size' => $pageSize,
-            'sort_field' => 'gmv',
-            'sort_order' => 'DESC',
-        ]);
+        [$result, $products] = $this->paginatedCollection(
+            $shop, 'GET', '/analytics/202605/shop_products/performance', 'products', $pageSize,
+            [
+                'start_date_ge' => $startDate,
+                'end_date_lt' => $endDate,
+                'currency' => 'LOCAL',
+                'product_status_filter' => 'ALL',
+                'sort_field' => 'gmv',
+                'sort_order' => 'DESC',
+            ],
+        );
+        $result['performance_summary'] = [
+            'product_records' => count($products),
+            'currency' => $this->nestedString($products, ['total_performance', 'gmv', 'currency']) ?? 'LOCAL',
+            'gmv' => $this->sumNestedMoney($products, ['total_performance', 'gmv', 'amount']),
+            'orders' => $this->sumNestedNumeric($products, ['total_performance', 'orders']),
+            'items_sold' => $this->sumNestedNumeric($products, ['total_performance', 'items_sold']),
+            'refund_amount' => $this->sumNestedMoney($products, ['total_performance', 'refunds', 'amount']),
+            'refunded_items' => $this->sumNestedNumeric($products, ['total_performance', 'refunded_items']),
+        ];
+
+        return $result;
+    }
+
+    /**
+     * @param array<string, int|string> $query
+     * @param array<string, mixed> $body
+     * @return array{array<string, mixed>, list<array<string, mixed>>}
+     */
+    private function paginatedCollection(
+        TikTokShop $shop,
+        string $method,
+        string $path,
+        string $collectionKey,
+        int $visibleLimit,
+        array $query = [],
+        array $body = [],
+        bool $paginationInBody = false,
+    ): array {
+        $visibleLimit = max(1, min(100, $visibleLimit));
+        $records = [];
+        $firstPageMetadata = [];
+        $pageToken = '';
+        $seenTokens = [];
+        $pagesFetched = 0;
+        $requestId = null;
+        $reportedTotal = null;
+        $complete = false;
+
+        while ($pagesFetched < self::MAX_PAGES) {
+            $pageQuery = $query;
+            $pageBody = $body;
+            $pagination = ['page_size' => 100];
+
+            if ($paginationInBody) {
+                $pagination['page_token'] = $pageToken;
+            } elseif ($pageToken !== '') {
+                $pagination['page_token'] = $pageToken;
+            }
+
+            if ($paginationInBody) {
+                $pageBody = [...$pageBody, ...$pagination];
+            } else {
+                $pageQuery = [...$pageQuery, ...$pagination];
+            }
+
+            $page = $this->shopRequest($shop, $method, $path, $pageQuery, $pageBody);
+            $pagesFetched++;
+
+            if ($pagesFetched === 1) {
+                $firstPageMetadata = $page;
+                unset($firstPageMetadata[$collectionKey], $firstPageMetadata['next_page_token'], $firstPageMetadata['_request_id']);
+            }
+
+            if (is_int($page['total_count'] ?? null)) {
+                $reportedTotal = $page['total_count'];
+            }
+
+            if (is_string($page['_request_id'] ?? null)) {
+                $requestId = $page['_request_id'];
+            }
+
+            foreach (is_array($page[$collectionKey] ?? null) ? $page[$collectionKey] : [] as $record) {
+                if (is_array($record)) {
+                    $records[] = $record;
+                }
+            }
+
+            $nextToken = is_string($page['next_page_token'] ?? null) ? $page['next_page_token'] : '';
+
+            if ($nextToken === '') {
+                $complete = true;
+                break;
+            }
+
+            if (isset($seenTokens[$nextToken])) {
+                break;
+            }
+
+            $seenTokens[$nextToken] = true;
+            $pageToken = $nextToken;
+        }
+
+        $result = [
+            ...$firstPageMetadata,
+            $collectionKey => array_slice($records, 0, $visibleLimit),
+            'total_count' => $reportedTotal ?? count($records),
+            'pagination' => [
+                'records_scanned' => count($records),
+                'pages_fetched' => $pagesFetched,
+                'complete' => $complete,
+                'reported_total_matches' => $reportedTotal === null || $reportedTotal === count($records),
+            ],
+        ];
+
+        if (! $complete && $pageToken !== '') {
+            $result['next_page_token'] = $pageToken;
+        }
+
+        if ($requestId !== null) {
+            $result['_request_id'] = $requestId;
+        }
+
+        return [$result, $records];
+    }
+
+    /** @param list<array<string, mixed>> $records */
+    private function countBy(array $records, string $key): array
+    {
+        $counts = [];
+        foreach ($records as $record) {
+            $value = is_string($record[$key] ?? null) && $record[$key] !== ''
+                ? strtoupper($record[$key])
+                : 'UNKNOWN';
+            $counts[$value] = ($counts[$value] ?? 0) + 1;
+        }
+        ksort($counts);
+
+        return $counts;
+    }
+
+    /** @param list<array<string, mixed>> $records */
+    private function sumNumeric(array $records, string $key): float
+    {
+        return array_reduce($records, fn (float $sum, array $record): float =>
+            $sum + (is_numeric($record[$key] ?? null) ? (float) $record[$key] : 0.0), 0.0);
+    }
+
+    /** @param list<array<string, mixed>> $records */
+    private function sumMoney(array $records, string $key): float
+    {
+        return $this->sumNestedMoney($records, [$key]);
+    }
+
+    /** @param list<array<string, mixed>> $records */
+    private function sumNestedMoney(array $records, array $path): float
+    {
+        return round($this->sumNestedNumeric($records, $path), 2);
+    }
+
+    /** @param list<array<string, mixed>> $records */
+    private function sumNestedNumeric(array $records, array $path): float
+    {
+        $sum = 0.0;
+        foreach ($records as $record) {
+            $value = $record;
+            foreach ($path as $key) {
+                $value = is_array($value) ? ($value[$key] ?? null) : null;
+            }
+            $sum += is_numeric($value) ? (float) $value : 0.0;
+        }
+
+        return $sum;
+    }
+
+    /** @param list<array<string, mixed>> $records */
+    private function firstString(array $records, string $key): ?string
+    {
+        foreach ($records as $record) {
+            if (is_string($record[$key] ?? null) && $record[$key] !== '') {
+                return $record[$key];
+            }
+        }
+
+        return null;
+    }
+
+    /** @param list<array<string, mixed>> $records */
+    private function nestedString(array $records, array $path): ?string
+    {
+        foreach ($records as $record) {
+            $value = $record;
+            foreach ($path as $key) {
+                $value = is_array($value) ? ($value[$key] ?? null) : null;
+            }
+            if (is_string($value) && $value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     /**

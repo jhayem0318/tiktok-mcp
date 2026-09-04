@@ -447,6 +447,104 @@ class ServiceEndpointsTest extends TestCase
         Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'page_token=next-page'));
     }
 
+    public function test_tiktok_shop_analytics_aggregate_gmv_across_every_page(): void
+    {
+        $this->configureTikTokShop();
+        config()->set([
+            'services.tiktok.api_url' => 'https://open-api.tiktokglobalshop.com',
+            'services.tiktok.mcp_bearer_token' => 'mcp-secret',
+        ]);
+        $authorization = TikTokShopAuthorization::query()->create([
+            'app_key' => 'test-app-key', 'open_id' => 'seller-open-id',
+            'seller_name' => 'Anker Charging', 'seller_base_region' => 'PH', 'user_type' => 0,
+            'access_token' => 'access-token-value', 'refresh_token' => 'refresh-token-value',
+            'access_token_expires_at' => now()->addWeek(), 'refresh_token_expires_at' => now()->addYear(),
+        ]);
+        TikTokShop::query()->create([
+            'tik_tok_shop_authorization_id' => $authorization->id, 'shop_id' => 'shop-id',
+            'shop_cipher' => 'secret-shop-cipher', 'name' => 'Anker Charging', 'region' => 'PH',
+        ]);
+
+        Http::preventStrayRequests();
+        Http::fakeSequence('https://open-api.tiktokglobalshop.com/analytics/202605/shop_products/performance*')
+            ->push(['code' => 0, 'message' => 'Success', 'data' => [
+                'products' => [['total_performance' => [
+                    'gmv' => ['amount' => '100.25', 'currency' => 'PHP'],
+                    'orders' => 2, 'items_sold' => 3,
+                    'refunds' => ['amount' => '10.00', 'currency' => 'PHP'], 'refunded_items' => 1,
+                ]]],
+                'total_count' => 2, 'next_page_token' => 'analytics-next',
+            ]])
+            ->push(['code' => 0, 'message' => 'Success', 'data' => [
+                'products' => [['total_performance' => [
+                    'gmv' => ['amount' => '49.75', 'currency' => 'PHP'],
+                    'orders' => 1, 'items_sold' => 1,
+                    'refunds' => ['amount' => '5.50', 'currency' => 'PHP'], 'refunded_items' => 1,
+                ]]],
+                'total_count' => 2, 'next_page_token' => '',
+            ]]);
+
+        $response = $this->withToken('mcp-secret')->postJson('/api/tiktok/mcp', [
+            'jsonrpc' => '2.0', 'id' => 4, 'method' => 'tools/call',
+            'params' => ['name' => 'tiktok_shop_analytics', 'arguments' => [
+                'start_date' => '2026-09-01', 'end_date' => '2026-09-04', 'limit' => 1,
+                'seller_center_count' => 2, 'seller_center_value' => 150,
+            ]],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'result.structuredContent.data.products')
+            ->assertJsonPath('result.structuredContent.data.pagination.records_scanned', 2)
+            ->assertJsonPath('result.structuredContent.data.pagination.complete', true)
+            ->assertJsonPath('result.structuredContent.data.performance_summary.gmv', 150)
+            ->assertJsonPath('result.structuredContent.data.performance_summary.orders', 3)
+            ->assertJsonPath('result.structuredContent.data.performance_summary.items_sold', 4)
+            ->assertJsonPath('result.structuredContent.data.performance_summary.refund_amount', 15.5)
+            ->assertJsonPath('result.structuredContent.reconciliation.count_matches', true)
+            ->assertJsonPath('result.structuredContent.reconciliation.value_matches', true);
+    }
+
+    public function test_tiktok_shop_promotions_follow_body_page_tokens(): void
+    {
+        $this->configureTikTokShop();
+        config()->set([
+            'services.tiktok.api_url' => 'https://open-api.tiktokglobalshop.com',
+            'services.tiktok.mcp_bearer_token' => 'mcp-secret',
+        ]);
+        $authorization = TikTokShopAuthorization::query()->create([
+            'app_key' => 'test-app-key', 'open_id' => 'seller-open-id',
+            'seller_name' => 'Anker Charging', 'seller_base_region' => 'PH', 'user_type' => 0,
+            'access_token' => 'access-token-value', 'refresh_token' => 'refresh-token-value',
+            'access_token_expires_at' => now()->addWeek(), 'refresh_token_expires_at' => now()->addYear(),
+        ]);
+        TikTokShop::query()->create([
+            'tik_tok_shop_authorization_id' => $authorization->id, 'shop_id' => 'shop-id',
+            'shop_cipher' => 'secret-shop-cipher', 'name' => 'Anker Charging', 'region' => 'PH',
+        ]);
+
+        Http::preventStrayRequests();
+        Http::fakeSequence('https://open-api.tiktokglobalshop.com/promotion/202309/activities/search*')
+            ->push(['code' => 0, 'message' => 'Success', 'data' => [
+                'activities' => [['status' => 'ONGOING', 'activity_type' => 'PRODUCT_DISCOUNT']],
+                'total_count' => 2, 'next_page_token' => '2',
+            ]])
+            ->push(['code' => 0, 'message' => 'Success', 'data' => [
+                'activities' => [['status' => 'EXPIRED', 'activity_type' => 'PRODUCT_DISCOUNT']],
+                'total_count' => 2, 'next_page_token' => '',
+            ]]);
+
+        $response = $this->withToken('mcp-secret')->postJson('/api/tiktok/mcp', [
+            'jsonrpc' => '2.0', 'id' => 5, 'method' => 'tools/call',
+            'params' => ['name' => 'tiktok_shop_promotions', 'arguments' => ['limit' => 1]],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('result.structuredContent.data.pagination.records_scanned', 2)
+            ->assertJsonPath('result.structuredContent.data.promotion_summary.counts_by_status.ONGOING', 1)
+            ->assertJsonPath('result.structuredContent.data.promotion_summary.counts_by_status.EXPIRED', 1);
+        Http::assertSent(fn (Request $request): bool => $request['page_token'] === '2');
+    }
+
     public function test_tiktok_review_page_requires_configured_reviewer_credentials(): void
     {
         $this->get('/tiktok/review/login')

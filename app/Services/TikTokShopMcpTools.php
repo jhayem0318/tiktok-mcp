@@ -55,6 +55,15 @@ class TikTokShopMcpTools
                         'maximum' => 100,
                         'default' => 20,
                     ],
+                    'seller_center_count' => [
+                        'type' => 'number',
+                        'minimum' => 0,
+                        'description' => 'Optional Seller Center export count for reconciliation.',
+                    ],
+                    'seller_center_value' => [
+                        'type' => 'number',
+                        'description' => 'Optional Seller Center export value for reconciliation against the dataset primary financial metric.',
+                    ],
                 ],
                 'additionalProperties' => false,
             ],
@@ -142,6 +151,7 @@ class TikTokShopMcpTools
             'returns' => $this->client->returns($shop, $start->getTimestamp(), $end->getTimestamp(), $limit),
             'promotions' => $this->client->promotions($shop, $limit),
         };
+        $reconciliation = $this->reconciliation($dataset, $data, $arguments);
 
         return [
             'source' => 'TikTok Shop Open API',
@@ -155,8 +165,79 @@ class TikTokShopMcpTools
             'currency' => 'LOCAL',
             'attribution' => 'Total Shop data; not TikTok Ads-attributed revenue.',
             'comparison_period' => null,
+            'reconciliation' => $reconciliation,
+            'ads_integration' => [
+                'shop_scope' => 'Total seller-owned TikTok Shop performance.',
+                'ads_scope' => 'TikTok Ads-attributed performance from the official TikTok for Business MCP.',
+                'combination_rule' => 'Compare and reconcile the two scopes; never add Ads-attributed revenue to total Shop revenue.',
+                'join_dimensions' => ['date_range', 'timezone', 'currency', 'product_or_sku_when_available'],
+            ],
             'data' => $this->redact($data, $dataset, $preserveResourceIds),
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @param array<string, mixed> $arguments
+     * @return array<string, mixed>
+     */
+    private function reconciliation(string $dataset, array $data, array $arguments): array
+    {
+        $count = (int) ($data['total_count']
+            ?? $data['status_summary']['records_scanned']
+            ?? $data['pagination']['records_scanned']
+            ?? 0);
+        $primaryMetric = match ($dataset) {
+            'analytics' => 'gmv',
+            'finance' => 'settlement_amount',
+            'returns' => 'refund_amount',
+            default => null,
+        };
+        $primaryValue = match ($dataset) {
+            'analytics' => $data['performance_summary']['gmv'] ?? null,
+            'finance' => $data['finance_summary']['settlement_amount'] ?? null,
+            'returns' => $data['return_summary']['refund_amount'] ?? null,
+            default => null,
+        };
+        $complete = (bool) ($data['status_summary']['complete'] ?? $data['pagination']['complete'] ?? true);
+        $exportCount = $this->optionalNumber($arguments, 'seller_center_count');
+        $exportValue = $this->optionalNumber($arguments, 'seller_center_value');
+
+        return [
+            'api_complete' => $complete,
+            'api_record_count' => $count,
+            'seller_center_count' => $exportCount,
+            'count_difference' => $exportCount === null ? null : $count - $exportCount,
+            'count_matches' => $exportCount === null ? null : abs($count - $exportCount) < 0.00001,
+            'primary_value_metric' => $primaryMetric,
+            'api_primary_value' => $primaryValue,
+            'seller_center_value' => $exportValue,
+            'value_difference' => $exportValue === null || ! is_numeric($primaryValue)
+                ? null
+                : round((float) $primaryValue - $exportValue, 2),
+            'value_matches' => $exportValue === null || ! is_numeric($primaryValue)
+                ? null
+                : abs((float) $primaryValue - $exportValue) < 0.01,
+            'status' => ! $complete
+                ? 'API pagination incomplete'
+                : (($exportCount === null && $exportValue === null)
+                    ? 'API complete; Seller Center export not supplied'
+                    : 'Compared with supplied Seller Center values'),
+        ];
+    }
+
+    /** @param array<string, mixed> $arguments */
+    private function optionalNumber(array $arguments, string $key): ?float
+    {
+        if (! array_key_exists($key, $arguments)) {
+            return null;
+        }
+
+        if (! is_numeric($arguments[$key])) {
+            throw new InvalidArgumentException($key.' must be numeric.');
+        }
+
+        return (float) $arguments[$key];
     }
 
     private function description(string $dataset): string
