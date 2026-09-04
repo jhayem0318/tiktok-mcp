@@ -55,6 +55,12 @@ class TikTokShopMcpTools
                         'maximum' => 100,
                         'default' => 20,
                     ],
+                    ...($dataset === 'orders' ? [
+                        'page_token' => [
+                            'type' => 'string',
+                            'description' => 'Continuation token from the prior orders response. Omit for the first page and complete status summary.',
+                        ],
+                    ] : []),
                     'seller_center_count' => [
                         'type' => 'number',
                         'minimum' => 0,
@@ -142,10 +148,13 @@ class TikTokShopMcpTools
         $timezone = $shop->region === 'PH' ? 'Asia/Manila' : (string) config('app.timezone', 'UTC');
         [$start, $end] = $this->dateRange($arguments, $timezone);
         $limit = max(1, min(100, (int) ($arguments['limit'] ?? 20)));
+        $pageToken = $dataset === 'orders' && is_string($arguments['page_token'] ?? null)
+            ? $arguments['page_token']
+            : null;
 
         $data = match ($dataset) {
             'analytics' => $this->client->analytics($shop, $start->toDateString(), $end->toDateString(), $limit),
-            'orders' => $this->client->orders($shop, $start->getTimestamp(), $end->getTimestamp(), $limit),
+            'orders' => $this->client->orders($shop, $start->getTimestamp(), $end->getTimestamp(), $limit, $pageToken),
             'products' => $this->client->products($shop, $limit),
             'finance' => $this->client->finance($shop, $start->getTimestamp(), $end->getTimestamp(), $limit),
             'returns' => $this->client->returns($shop, $start->getTimestamp(), $end->getTimestamp(), $limit),
@@ -244,7 +253,7 @@ class TikTokShopMcpTools
     {
         return match ($dataset) {
             'analytics' => 'Read seller-owned TikTok Shop product performance and GMV metrics. This is total Shop data, not Ads-attributed revenue.',
-            'orders' => 'Read seller-owned TikTok Shop orders and exact all-page status totals for commercial aggregation. Customer, address, contact, and order identifiers are removed.',
+            'orders' => 'Read seller-owned TikTok Shop orders and exact all-page status totals. Use next_page_token with page_token to retrieve every redacted order page. Customer, address, contact, and order identifiers are removed.',
             'products' => 'Read the current TikTok Shop product and SKU catalogue without changing listings.',
             'finance' => 'Read TikTok Shop seller statements, fees, commissions, subsidies, and settlement data.',
             'returns' => 'Read TikTok Shop returns and refunds for commercial aggregation. Customer and order identifiers are removed.',

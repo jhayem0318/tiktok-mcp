@@ -28,8 +28,12 @@ class TikTokShopApiClient
     }
 
     /** @return array<string, mixed> */
-    public function orders(TikTokShop $shop, int $start, int $end, int $pageSize = 20): array
+    public function orders(TikTokShop $shop, int $start, int $end, int $pageSize = 20, ?string $pageToken = null): array
     {
+        if ($pageToken !== null && $pageToken !== '') {
+            return $this->ordersPage($shop, $start, $end, $pageSize, $pageToken);
+        }
+
         $visibleLimit = max(1, min(100, $pageSize));
         $visibleOrders = [];
         $statusCounts = [];
@@ -40,6 +44,7 @@ class TikTokShopApiClient
         $reportedTotal = null;
         $requestId = null;
         $complete = false;
+        $continuationToken = '';
 
         while ($pagesFetched < self::MAX_PAGES) {
             $query = ['page_size' => 100];
@@ -82,6 +87,10 @@ class TikTokShopApiClient
 
             $nextToken = is_string($page['next_page_token'] ?? null) ? $page['next_page_token'] : '';
 
+            if ($pagesFetched === 1) {
+                $continuationToken = $nextToken;
+            }
+
             if ($nextToken === '') {
                 $complete = true;
                 break;
@@ -109,8 +118,8 @@ class TikTokShopApiClient
             ],
         ];
 
-        if (! $complete && $pageToken !== '') {
-            $result['next_page_token'] = $pageToken;
+        if ($continuationToken !== '') {
+            $result['next_page_token'] = $continuationToken;
         }
 
         if ($requestId !== null) {
@@ -118,6 +127,18 @@ class TikTokShopApiClient
         }
 
         return $result;
+    }
+
+    /** @return array<string, mixed> */
+    private function ordersPage(TikTokShop $shop, int $start, int $end, int $pageSize, string $pageToken): array
+    {
+        return $this->shopRequest($shop, 'POST', '/order/202309/orders/search', [
+            'page_size' => max(1, min(100, $pageSize)),
+            'page_token' => $pageToken,
+        ], [
+            'create_time_ge' => $start,
+            'create_time_lt' => $end,
+        ]);
     }
 
     /** @return array<string, mixed> */
