@@ -19,7 +19,12 @@ class ReadTikTokShopData extends Command
 
     public function handle(TikTokShopApiClient $client): int
     {
-        $shop = TikTokShop::query()->latest('id')->first();
+        $shop = TikTokShop::query()
+            ->whereNotNull('name')
+            ->where('name', 'not like', 'SANDBOX\_%')
+            ->latest('id')
+            ->first()
+            ?? TikTokShop::query()->latest('id')->first();
 
         if ($shop === null) {
             $this->error('No authorized TikTok Shop metadata is stored. Run tiktok:shop:test first.');

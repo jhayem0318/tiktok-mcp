@@ -236,6 +236,13 @@ class ServiceEndpointsTest extends TestCase
             'name' => 'Anker Philippines',
             'region' => 'PH',
         ]);
+        TikTokShop::query()->create([
+            'tik_tok_shop_authorization_id' => $authorization->id,
+            'shop_id' => 'sandbox-shop-id',
+            'shop_cipher' => 'sandbox-shop-cipher',
+            'name' => 'SANDBOX_PH_TEST',
+            'region' => 'PH',
+        ]);
 
         Http::preventStrayRequests();
         Http::fake([
@@ -308,6 +315,13 @@ class ServiceEndpointsTest extends TestCase
             'name' => 'Anker Philippines',
             'region' => 'PH',
         ]);
+        TikTokShop::query()->create([
+            'tik_tok_shop_authorization_id' => $authorization->id,
+            'shop_id' => 'sandbox-shop-id',
+            'shop_cipher' => 'sandbox-shop-cipher',
+            'name' => 'SANDBOX_PH_TEST',
+            'region' => 'PH',
+        ]);
 
         Http::preventStrayRequests();
         Http::fake([
@@ -339,6 +353,7 @@ class ServiceEndpointsTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('result.isError', false)
             ->assertJsonPath('result.structuredContent.source', 'TikTok Shop Open API')
+            ->assertJsonPath('result.structuredContent.shop.name', 'Anker Philippines')
             ->assertJsonPath('result.structuredContent.data._request_id', 'safe-mcp-request-id')
             ->assertJsonPath('result.structuredContent.data.products.0.title', 'Power Bank')
             ->assertJsonMissing(['buyer_email' => 'customer@example.com'])

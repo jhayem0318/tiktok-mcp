@@ -73,7 +73,12 @@ class TikTokShopMcpTools
      */
     public function call(string $name, array $arguments): array
     {
-        $shop = TikTokShop::query()->latest('id')->first();
+        $shop = TikTokShop::query()
+            ->whereNotNull('name')
+            ->where('name', 'not like', 'SANDBOX\_%')
+            ->latest('id')
+            ->first()
+            ?? TikTokShop::query()->latest('id')->first();
 
         if ($shop === null) {
             throw new InvalidArgumentException('No authorized TikTok Shop is stored.');
