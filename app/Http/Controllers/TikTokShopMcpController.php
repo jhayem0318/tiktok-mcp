@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\TikTokAuthorizationException;
 use App\Exceptions\TikTokShopApiException;
+use App\Models\RemoteMcpAccessToken;
 use App\Services\TikTokShopMcpTools;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,16 +16,11 @@ class TikTokShopMcpController extends Controller
 {
     public function __invoke(Request $request, TikTokShopMcpTools $tools): JsonResponse|Response
     {
-        $token = config('services.tiktok.mcp_bearer_token');
         $providedToken = $request->header('X-MCP-Key')
             ?? $request->bearerToken();
 
-        if (! is_string($token) || $token === '') {
-            return response()->json(['error' => 'MCP bearer authentication is not configured.'], 503);
-        }
-
-        if (! is_string($providedToken) || ! hash_equals($token, $providedToken)) {
-            return response()->json(['error' => 'Unauthorized.'], 401);
+        if (! $this->authenticated($request, $providedToken)) {
+            return $this->unauthorized($request);
         }
 
         if ($request->isMethod('GET')) {
@@ -58,6 +54,42 @@ class TikTokShopMcpController extends Controller
             'tools/call' => $this->callTool($id, $message, $tools),
             default => $this->error($id, -32601, 'Method not found'),
         };
+    }
+
+    private function authenticated(Request $request, mixed $providedToken): bool
+    {
+        if (! is_string($providedToken) || $providedToken === '') {
+            return false;
+        }
+
+        if ($request->routeIs('tiktok.mcp.remote')) {
+            if (! (bool) config('services.tiktok.remote_mcp_enabled')) {
+                return false;
+            }
+
+            $accessToken = RemoteMcpAccessToken::query()
+                ->where('token_hash', hash('sha256', $providedToken))
+                ->whereNull('revoked_at')
+                ->where('expires_at', '>', now())
+                ->first();
+
+            return $accessToken !== null && in_array('tiktok_shop.read', $accessToken->scopes, true);
+        }
+
+        $token = config('services.tiktok.mcp_bearer_token');
+
+        return is_string($token) && $token !== '' && hash_equals($token, $providedToken);
+    }
+
+    private function unauthorized(Request $request): JsonResponse
+    {
+        if ($request->routeIs('tiktok.mcp.remote')) {
+            return response()->json(['error' => 'OAuth access token required.'], 401, [
+                'WWW-Authenticate' => 'Bearer resource_metadata="'.url('/.well-known/oauth-protected-resource').'"',
+            ]);
+        }
+
+        return response()->json(['error' => 'Unauthorized.'], 401, ['WWW-Authenticate' => 'Bearer']);
     }
 
     /** @param array<string, mixed> $message */

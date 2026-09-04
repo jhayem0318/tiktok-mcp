@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\RemoteMcpOAuthController;
 use App\Http\Controllers\TikTokShopCallbackController;
 use App\Http\Controllers\TikTokShopReviewController;
 use App\Http\Controllers\TikTokShopReviewLoginController;
@@ -26,3 +27,16 @@ Route::post('/tiktok/review/login', [TikTokShopReviewLoginController::class, 'st
     ->name('tiktok.review.login.store');
 Route::post('/tiktok/review/logout', [TikTokShopReviewLoginController::class, 'destroy'])
     ->name('tiktok.review.logout');
+
+Route::get('/.well-known/oauth-protected-resource', [RemoteMcpOAuthController::class, 'protectedResource'])
+    ->name('remote-mcp.protected-resource');
+Route::get('/.well-known/oauth-authorization-server', [RemoteMcpOAuthController::class, 'authorizationServer'])
+    ->name('remote-mcp.authorization-server');
+Route::match(['GET', 'POST'], '/oauth/authorize', [RemoteMcpOAuthController::class, 'authorize'])
+    ->middleware('throttle:20,1')
+    ->name('remote-mcp.authorize');
+Route::get('/oauth/authorize/login', [RemoteMcpOAuthController::class, 'login'])
+    ->name('remote-mcp.login');
+Route::post('/oauth/authorize/login', [RemoteMcpOAuthController::class, 'authenticate'])
+    ->middleware('throttle:10,1')
+    ->name('remote-mcp.login.store');
