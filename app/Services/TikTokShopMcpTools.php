@@ -163,7 +163,7 @@ class TikTokShopMcpTools
     {
         return match ($dataset) {
             'analytics' => 'Read seller-owned TikTok Shop product performance and GMV metrics. This is total Shop data, not Ads-attributed revenue.',
-            'orders' => 'Read seller-owned TikTok Shop orders for commercial aggregation. Customer, address, contact, and order identifiers are removed.',
+            'orders' => 'Read seller-owned TikTok Shop orders and exact all-page status totals for commercial aggregation. Customer, address, contact, and order identifiers are removed.',
             'products' => 'Read the current TikTok Shop product and SKU catalogue without changing listings.',
             'finance' => 'Read TikTok Shop seller statements, fees, commissions, subsidies, and settlement data.',
             'returns' => 'Read TikTok Shop returns and refunds for commercial aggregation. Customer and order identifiers are removed.',

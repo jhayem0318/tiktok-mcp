@@ -13,6 +13,8 @@ class TikTokShopApiClient
 {
     private const AUTHORIZED_SHOPS_PATH = '/authorization/202309/shops';
 
+    private const MAX_ORDER_PAGES = 250;
+
     public function __construct(private readonly TikTokShopTokenManager $tokenManager)
     {
     }
@@ -28,10 +30,94 @@ class TikTokShopApiClient
     /** @return array<string, mixed> */
     public function orders(TikTokShop $shop, int $start, int $end, int $pageSize = 20): array
     {
-        return $this->shopRequest($shop, 'POST', '/order/202309/orders/search', ['page_size' => $pageSize], [
-            'create_time_ge' => $start,
-            'create_time_lt' => $end,
-        ]);
+        $visibleLimit = max(1, min(100, $pageSize));
+        $visibleOrders = [];
+        $statusCounts = [];
+        $pageToken = '';
+        $seenTokens = [];
+        $pagesFetched = 0;
+        $recordsScanned = 0;
+        $reportedTotal = null;
+        $requestId = null;
+        $complete = false;
+
+        while ($pagesFetched < self::MAX_ORDER_PAGES) {
+            $query = ['page_size' => 100];
+
+            if ($pageToken !== '') {
+                $query['page_token'] = $pageToken;
+            }
+
+            $page = $this->shopRequest($shop, 'POST', '/order/202309/orders/search', $query, [
+                'create_time_ge' => $start,
+                'create_time_lt' => $end,
+            ]);
+            $pagesFetched++;
+
+            if (is_int($page['total_count'] ?? null)) {
+                $reportedTotal = $page['total_count'];
+            }
+
+            if (is_string($page['_request_id'] ?? null)) {
+                $requestId = $page['_request_id'];
+            }
+
+            $orders = is_array($page['orders'] ?? null) ? $page['orders'] : [];
+
+            foreach ($orders as $order) {
+                if (! is_array($order)) {
+                    continue;
+                }
+
+                $recordsScanned++;
+                $status = is_string($order['status'] ?? null) && $order['status'] !== ''
+                    ? strtoupper($order['status'])
+                    : 'UNKNOWN';
+                $statusCounts[$status] = ($statusCounts[$status] ?? 0) + 1;
+
+                if (count($visibleOrders) < $visibleLimit) {
+                    $visibleOrders[] = $order;
+                }
+            }
+
+            $nextToken = is_string($page['next_page_token'] ?? null) ? $page['next_page_token'] : '';
+
+            if ($nextToken === '') {
+                $complete = true;
+                break;
+            }
+
+            if (isset($seenTokens[$nextToken])) {
+                break;
+            }
+
+            $seenTokens[$nextToken] = true;
+            $pageToken = $nextToken;
+        }
+
+        ksort($statusCounts);
+
+        $result = [
+            'orders' => $visibleOrders,
+            'total_count' => $reportedTotal ?? $recordsScanned,
+            'status_summary' => [
+                'counts' => $statusCounts,
+                'delivered_or_completed' => $statusCounts['DELIVERED'] ?? 0,
+                'records_scanned' => $recordsScanned,
+                'pages_fetched' => $pagesFetched,
+                'complete' => $complete,
+            ],
+        ];
+
+        if (! $complete && $pageToken !== '') {
+            $result['next_page_token'] = $pageToken;
+        }
+
+        if ($requestId !== null) {
+            $result['_request_id'] = $requestId;
+        }
+
+        return $result;
     }
 
     /** @return array<string, mixed> */

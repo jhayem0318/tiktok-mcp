@@ -363,6 +363,90 @@ class ServiceEndpointsTest extends TestCase
         $this->assertStringNotContainsString('secret-shop-cipher', $response->getContent());
     }
 
+    public function test_tiktok_shop_orders_aggregate_statuses_across_every_page(): void
+    {
+        $this->configureTikTokShop();
+        config()->set([
+            'services.tiktok.api_url' => 'https://open-api.tiktokglobalshop.com',
+            'services.tiktok.mcp_bearer_token' => 'mcp-secret',
+        ]);
+
+        $authorization = TikTokShopAuthorization::query()->create([
+            'app_key' => 'test-app-key',
+            'open_id' => 'seller-open-id',
+            'seller_name' => 'Anker Charging',
+            'seller_base_region' => 'PH',
+            'user_type' => 0,
+            'access_token' => 'access-token-value',
+            'refresh_token' => 'refresh-token-value',
+            'access_token_expires_at' => now()->addWeek(),
+            'refresh_token_expires_at' => now()->addYear(),
+        ]);
+        TikTokShop::query()->create([
+            'tik_tok_shop_authorization_id' => $authorization->id,
+            'shop_id' => 'shop-id',
+            'shop_cipher' => 'secret-shop-cipher',
+            'name' => 'Anker Charging',
+            'region' => 'PH',
+        ]);
+
+        Http::preventStrayRequests();
+        Http::fakeSequence('https://open-api.tiktokglobalshop.com/order/202309/orders/search*')
+            ->push([
+                'code' => 0,
+                'message' => 'Success',
+                'data' => [
+                    'orders' => [
+                        ['id' => 'private-order-1', 'status' => 'DELIVERED'],
+                        ['id' => 'private-order-2', 'status' => 'IN_TRANSIT'],
+                    ],
+                    'total_count' => 4,
+                    'next_page_token' => 'next-page',
+                ],
+            ])
+            ->push([
+                'code' => 0,
+                'message' => 'Success',
+                'data' => [
+                    'orders' => [
+                        ['id' => 'private-order-3', 'status' => 'DELIVERED'],
+                        ['id' => 'private-order-4', 'status' => 'CANCELLED'],
+                    ],
+                    'total_count' => 4,
+                    'next_page_token' => '',
+                ],
+            ]);
+
+        $response = $this->withToken('mcp-secret')->postJson('/api/tiktok/mcp', [
+            'jsonrpc' => '2.0',
+            'id' => 3,
+            'method' => 'tools/call',
+            'params' => [
+                'name' => 'tiktok_shop_orders',
+                'arguments' => [
+                    'start_date' => '2026-09-01',
+                    'end_date' => '2026-09-04',
+                    'limit' => 1,
+                ],
+            ],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('result.structuredContent.data.total_count', 4)
+            ->assertJsonCount(1, 'result.structuredContent.data.orders')
+            ->assertJsonPath('result.structuredContent.data.status_summary.counts.DELIVERED', 2)
+            ->assertJsonPath('result.structuredContent.data.status_summary.counts.IN_TRANSIT', 1)
+            ->assertJsonPath('result.structuredContent.data.status_summary.counts.CANCELLED', 1)
+            ->assertJsonPath('result.structuredContent.data.status_summary.delivered_or_completed', 2)
+            ->assertJsonPath('result.structuredContent.data.status_summary.records_scanned', 4)
+            ->assertJsonPath('result.structuredContent.data.status_summary.pages_fetched', 2)
+            ->assertJsonPath('result.structuredContent.data.status_summary.complete', true)
+            ->assertJsonMissing(['id' => 'private-order-1']);
+
+        Http::assertSentCount(2);
+        Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'page_token=next-page'));
+    }
+
     public function test_tiktok_review_page_requires_configured_reviewer_credentials(): void
     {
         $this->get('/tiktok/review/login')
