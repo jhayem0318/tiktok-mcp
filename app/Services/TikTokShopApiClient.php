@@ -140,7 +140,7 @@ class TikTokShopApiClient
     {
         [$result, $returns] = $this->paginatedCollection(
             $shop, 'POST', '/return_refund/202309/returns/search', 'return_orders', $pageSize,
-            [], ['create_time_ge' => $start, 'create_time_lt' => $end],
+            [], ['create_time_ge' => $start, 'create_time_lt' => $end], false, 50,
         );
         $result['return_summary'] = [
             'counts_by_status' => $this->countBy($returns, 'return_status'),
@@ -234,6 +234,7 @@ class TikTokShopApiClient
         array $query = [],
         array $body = [],
         bool $paginationInBody = false,
+        int $apiPageSize = 100,
     ): array {
         $visibleLimit = max(1, min(100, $visibleLimit));
         $records = [];
@@ -248,7 +249,7 @@ class TikTokShopApiClient
         while ($pagesFetched < self::MAX_PAGES) {
             $pageQuery = $query;
             $pageBody = $body;
-            $pagination = ['page_size' => 100];
+            $pagination = ['page_size' => $apiPageSize];
 
             if ($paginationInBody) {
                 $pagination['page_token'] = $pageToken;
