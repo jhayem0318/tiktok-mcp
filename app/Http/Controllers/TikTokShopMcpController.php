@@ -16,14 +16,15 @@ class TikTokShopMcpController extends Controller
     public function __invoke(Request $request, TikTokShopMcpTools $tools): JsonResponse|Response
     {
         $token = config('services.tiktok.mcp_bearer_token');
-        $providedToken = $request->bearerToken();
+        $providedToken = $request->header('X-MCP-Key')
+            ?? $request->bearerToken();
 
         if (! is_string($token) || $token === '') {
             return response()->json(['error' => 'MCP bearer authentication is not configured.'], 503);
         }
 
         if (! is_string($providedToken) || ! hash_equals($token, $providedToken)) {
-            return response()->json(['error' => 'Unauthorized.'], 401, ['WWW-Authenticate' => 'Bearer']);
+            return response()->json(['error' => 'Unauthorized.'], 401);
         }
 
         if ($request->isMethod('GET')) {
