@@ -397,8 +397,24 @@ class ServiceEndpointsTest extends TestCase
                 'message' => 'Success',
                 'data' => [
                     'orders' => [
-                        ['id' => 'private-order-1', 'status' => 'DELIVERED'],
-                        ['id' => 'private-order-2', 'status' => 'IN_TRANSIT'],
+                        [
+                            'id' => 'private-order-1',
+                            'status' => 'DELIVERED',
+                            'line_items' => [[
+                                'sale_price' => '100.25',
+                                'platform_discount' => '10.00',
+                                'currency' => 'PHP',
+                            ]],
+                        ],
+                        [
+                            'id' => 'private-order-2',
+                            'status' => 'IN_TRANSIT',
+                            'line_items' => [[
+                                'sale_price' => '49.75',
+                                'platform_discount' => '0',
+                                'currency' => 'PHP',
+                            ]],
+                        ],
                     ],
                     'total_count' => 4,
                     'next_page_token' => 'next-page',
@@ -409,8 +425,23 @@ class ServiceEndpointsTest extends TestCase
                 'message' => 'Success',
                 'data' => [
                     'orders' => [
-                        ['id' => 'private-order-3', 'status' => 'DELIVERED'],
-                        ['id' => 'private-order-4', 'status' => 'CANCELLED'],
+                        [
+                            'id' => 'private-order-3',
+                            'status' => 'DELIVERED',
+                            'line_items' => [[
+                                'sale_price' => '25',
+                                'platform_discount' => '5.50',
+                                'currency' => 'PHP',
+                            ]],
+                        ],
+                        [
+                            'id' => 'private-order-4',
+                            'status' => 'CANCELLED',
+                            'line_items' => [[
+                                'sale_price' => '30',
+                                'currency' => 'PHP',
+                            ]],
+                        ],
                     ],
                     'total_count' => 4,
                     'next_page_token' => '',
@@ -441,6 +472,15 @@ class ServiceEndpointsTest extends TestCase
             ->assertJsonPath('result.structuredContent.data.status_summary.records_scanned', 4)
             ->assertJsonPath('result.structuredContent.data.status_summary.pages_fetched', 2)
             ->assertJsonPath('result.structuredContent.data.status_summary.complete', true)
+            ->assertJsonPath('result.structuredContent.data.order_value_summary.orders_scanned', 4)
+            ->assertJsonPath('result.structuredContent.data.order_value_summary.line_items_scanned', 4)
+            ->assertJsonPath('result.structuredContent.data.order_value_summary.line_items_with_complete_pricing', 3)
+            ->assertJsonPath('result.structuredContent.data.order_value_summary.line_items_missing_pricing', 1)
+            ->assertJsonPath('result.structuredContent.data.order_value_summary.currency', 'PHP')
+            ->assertJsonPath('result.structuredContent.data.order_value_summary.sku_subtotal_after_discount', 175)
+            ->assertJsonPath('result.structuredContent.data.order_value_summary.sku_platform_discount', 15.5)
+            ->assertJsonPath('result.structuredContent.data.order_value_summary.calculated_gmv', 190.5)
+            ->assertJsonPath('result.structuredContent.data.order_value_summary.complete', false)
             ->assertJsonMissing(['id' => 'private-order-1']);
 
         Http::assertSentCount(2);

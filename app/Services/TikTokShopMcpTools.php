@@ -196,17 +196,20 @@ class TikTokShopMcpTools
             ?? 0);
         $primaryMetric = match ($dataset) {
             'analytics' => 'gmv',
+            'orders' => 'calculated_gmv',
             'finance' => 'settlement_amount',
             'returns' => 'refund_amount',
             default => null,
         };
         $primaryValue = match ($dataset) {
             'analytics' => $data['performance_summary']['gmv'] ?? null,
+            'orders' => $data['order_value_summary']['calculated_gmv'] ?? null,
             'finance' => $data['finance_summary']['settlement_amount'] ?? null,
             'returns' => $data['return_summary']['refund_amount'] ?? null,
             default => null,
         };
-        $complete = (bool) ($data['status_summary']['complete'] ?? $data['pagination']['complete'] ?? true);
+        $complete = (bool) ($data['status_summary']['complete'] ?? $data['pagination']['complete'] ?? true)
+            && ($dataset !== 'orders' || (bool) ($data['order_value_summary']['complete'] ?? false));
         $exportCount = $this->optionalNumber($arguments, 'seller_center_count');
         $exportValue = $this->optionalNumber($arguments, 'seller_center_value');
 
@@ -251,7 +254,7 @@ class TikTokShopMcpTools
     {
         return match ($dataset) {
             'analytics' => 'Read seller-owned TikTok Shop product performance and GMV metrics. This is total Shop data, not Ads-attributed revenue.',
-            'orders' => 'Read seller-owned TikTok Shop orders and exact all-page status totals. Use next_page_token with page_token to retrieve every redacted order page. Customer, address, contact, and order identifiers are removed.',
+            'orders' => 'Read seller-owned TikTok Shop orders, exact all-page status totals, and Custom GMV: SUM(line_items.sale_price + line_items.platform_discount). The order_value_summary is complete only when every page and every required line-item price was read. Use next_page_token with page_token to retrieve redacted records. Customer, address, contact, and order identifiers are removed.',
             'products' => 'Read the current TikTok Shop product and SKU catalogue without changing listings.',
             'finance' => 'Read TikTok Shop seller statements, fees, commissions, subsidies, and settlement data.',
             'returns' => 'Read TikTok Shop returns and refunds for commercial aggregation. Customer and order identifiers are removed.',

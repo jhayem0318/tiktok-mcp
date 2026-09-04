@@ -45,6 +45,16 @@ class TikTokShopApiClient
         $requestId = null;
         $complete = false;
         $continuationToken = '';
+        $orderValueSummary = [
+            'orders_scanned' => 0,
+            'line_items_scanned' => 0,
+            'line_items_with_complete_pricing' => 0,
+            'line_items_missing_pricing' => 0,
+            'sku_subtotal_after_discount' => 0.0,
+            'sku_platform_discount' => 0.0,
+            'calculated_gmv' => 0.0,
+            'currencies' => [],
+        ];
 
         while ($pagesFetched < self::MAX_PAGES) {
             $query = ['page_size' => 100];
@@ -75,6 +85,8 @@ class TikTokShopApiClient
                 }
 
                 $recordsScanned++;
+                $orderValueSummary['orders_scanned']++;
+                $this->addOrderLineItemValues($order, $orderValueSummary);
                 $status = is_string($order['status'] ?? null) && $order['status'] !== ''
                     ? strtoupper($order['status'])
                     : 'UNKNOWN';
@@ -116,6 +128,20 @@ class TikTokShopApiClient
                 'pages_fetched' => $pagesFetched,
                 'complete' => $complete,
             ],
+            'order_value_summary' => [
+                'formula' => 'SUM(line_items.sale_price + line_items.platform_discount)',
+                'orders_scanned' => $orderValueSummary['orders_scanned'],
+                'line_items_scanned' => $orderValueSummary['line_items_scanned'],
+                'line_items_with_complete_pricing' => $orderValueSummary['line_items_with_complete_pricing'],
+                'line_items_missing_pricing' => $orderValueSummary['line_items_missing_pricing'],
+                'currency' => count($orderValueSummary['currencies']) === 1
+                    ? array_key_first($orderValueSummary['currencies'])
+                    : 'LOCAL',
+                'sku_subtotal_after_discount' => round($orderValueSummary['sku_subtotal_after_discount'], 2),
+                'sku_platform_discount' => round($orderValueSummary['sku_platform_discount'], 2),
+                'calculated_gmv' => round($orderValueSummary['calculated_gmv'], 2),
+                'complete' => $complete && $orderValueSummary['line_items_missing_pricing'] === 0,
+            ],
         ];
 
         if ($continuationToken !== '') {
@@ -139,6 +165,40 @@ class TikTokShopApiClient
             'create_time_ge' => $start,
             'create_time_lt' => $end,
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $order
+     * @param  array<string, int|float|array<string, true>>  $summary
+     */
+    private function addOrderLineItemValues(array $order, array &$summary): void
+    {
+        $lineItems = is_array($order['line_items'] ?? null) ? $order['line_items'] : [];
+
+        foreach ($lineItems as $lineItem) {
+            if (! is_array($lineItem)) {
+                continue;
+            }
+
+            $summary['line_items_scanned']++;
+            $salePrice = $lineItem['sale_price'] ?? null;
+            $platformDiscount = $lineItem['platform_discount'] ?? null;
+
+            if (! is_numeric($salePrice) || ! is_numeric($platformDiscount)) {
+                $summary['line_items_missing_pricing']++;
+
+                continue;
+            }
+
+            $summary['line_items_with_complete_pricing']++;
+            $summary['sku_subtotal_after_discount'] += (float) $salePrice;
+            $summary['sku_platform_discount'] += (float) $platformDiscount;
+            $summary['calculated_gmv'] += (float) $salePrice + (float) $platformDiscount;
+
+            if (is_string($lineItem['currency'] ?? null) && $lineItem['currency'] !== '') {
+                $summary['currencies'][$lineItem['currency']] = true;
+            }
+        }
     }
 
     /** @return array<string, mixed> */
