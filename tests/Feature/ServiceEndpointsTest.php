@@ -334,7 +334,11 @@ class ServiceEndpointsTest extends TestCase
                         'id' => 'product-id',
                         'title' => 'Power Bank',
                         'buyer_email' => 'customer@example.com',
+                        'customer_name' => 'Private Customer',
                         'shipping_address' => 'private address',
+                        'country' => 'PH',
+                        'region' => 'Metro Manila',
+                        'city' => 'Manila',
                     ]],
                 ],
             ]),
@@ -356,7 +360,11 @@ class ServiceEndpointsTest extends TestCase
             ->assertJsonPath('result.structuredContent.shop.name', 'Anker Philippines')
             ->assertJsonPath('result.structuredContent.data._request_id', 'safe-mcp-request-id')
             ->assertJsonPath('result.structuredContent.data.products.0.title', 'Power Bank')
+            ->assertJsonPath('result.structuredContent.data.products.0.country', 'PH')
+            ->assertJsonPath('result.structuredContent.data.products.0.region', 'Metro Manila')
+            ->assertJsonPath('result.structuredContent.data.products.0.city', 'Manila')
             ->assertJsonMissing(['buyer_email' => 'customer@example.com'])
+            ->assertJsonMissing(['customer_name' => 'Private Customer'])
             ->assertJsonMissing(['shipping_address' => 'private address']);
 
         $this->assertStringNotContainsString('access-token-value', $response->getContent());
