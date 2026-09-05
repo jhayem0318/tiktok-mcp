@@ -62,6 +62,9 @@ Route::post('/client/password', [ClientDashboardController::class, 'updatePasswo
 Route::get('/client/dashboard', [ClientDashboardController::class, 'dashboard'])
     ->middleware('throttle:30,1')
     ->name('client.dashboard');
+Route::post('/client/dashboard/reports', [ClientDashboardController::class, 'requestReport'])
+    ->middleware('throttle:10,1')
+    ->name('client.dashboard.reports.store');
 Route::post('/client/logout', [ClientDashboardController::class, 'logout'])
     ->name('client.logout');
 

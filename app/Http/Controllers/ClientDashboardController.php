@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\GenerateClientDashboardReport;
+use App\Models\ClientDashboardReport;
 use App\Models\TikTokShop;
 use App\Models\User;
-use App\Services\TikTokShopMcpTools;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Hash;
-use Throwable;
 
 class ClientDashboardController extends Controller
 {
@@ -48,7 +48,7 @@ class ClientDashboardController extends Controller
         return redirect()->route('client.dashboard');
     }
 
-    public function dashboard(Request $request, TikTokShopMcpTools $tools): View|RedirectResponse
+    public function dashboard(Request $request): View|RedirectResponse
     {
         $client = $this->requireClient($request);
         if ($client->must_change_password) {
@@ -62,27 +62,43 @@ class ClientDashboardController extends Controller
             'end_date' => ['nullable', 'date_format:Y-m-d', 'after:start_date'],
         ]);
         $shop = $shops->firstWhere('shop_id', $validated['shop_id'] ?? null) ?? $shops->first();
-        $summary = null;
-        $error = null;
-
-        if ($shop !== null) {
-            try {
-                $summary = $tools->callForShop('tiktok_shop_orders', [
-                    'start_date' => $validated['start_date'] ?? now('Asia/Manila')->subDays(7)->toDateString(),
-                    'end_date' => $validated['end_date'] ?? now('Asia/Manila')->toDateString(),
-                    'limit' => 1,
-                ], $shop);
-            } catch (Throwable $exception) {
-                report($exception);
-                $error = 'TikTok Shop data is temporarily unavailable. Please try again later.';
-            }
-        }
+        $startDate = $validated['start_date'] ?? now('Asia/Manila')->subDays(7)->toDateString();
+        $endDate = $validated['end_date'] ?? now('Asia/Manila')->toDateString();
+        $report = $shop === null ? null : ClientDashboardReport::query()
+            ->where('user_id', $client->id)->where('tik_tok_shop_id', $shop->id)
+            ->whereDate('start_date', $startDate)->whereDate('end_date', $endDate)->latest()->first();
 
         return view('client-dashboard', [
-            'client' => $client, 'shops' => $shops, 'selectedShop' => $shop, 'summary' => $summary, 'error' => $error,
-            'startDate' => $validated['start_date'] ?? now('Asia/Manila')->subDays(7)->toDateString(),
-            'endDate' => $validated['end_date'] ?? now('Asia/Manila')->toDateString(),
+            'client' => $client, 'shops' => $shops, 'selectedShop' => $shop, 'report' => $report,
+            'startDate' => $startDate, 'endDate' => $endDate,
         ]);
+    }
+
+    public function requestReport(Request $request): RedirectResponse
+    {
+        $client = $this->requireClient($request);
+        $validated = $request->validate([
+            'shop_id' => ['required', 'string'],
+            'start_date' => ['required', 'date_format:Y-m-d'],
+            'end_date' => ['required', 'date_format:Y-m-d', 'after:start_date'],
+        ]);
+        $shop = $this->assignedShops($client)->firstWhere('shop_id', $validated['shop_id']);
+        abort_unless($shop !== null, 403, 'That Shop is not assigned to this client.');
+
+        $attributes = [
+            'user_id' => $client->id, 'tik_tok_shop_id' => $shop->id,
+            'start_date' => $validated['start_date'], 'end_date' => $validated['end_date'],
+        ];
+        $report = ClientDashboardReport::query()->where($attributes)->first();
+
+        if ($report === null || in_array($report->status, ['completed', 'failed'], true)) {
+            $report = ClientDashboardReport::query()->updateOrCreate($attributes, [
+                'status' => 'pending', 'result' => null, 'error_message' => null, 'completed_at' => null,
+            ]);
+            GenerateClientDashboardReport::dispatch($report->id);
+        }
+
+        return redirect()->route('client.dashboard', $validated);
     }
 
     public function logout(Request $request): RedirectResponse

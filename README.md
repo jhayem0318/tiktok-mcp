@@ -87,5 +87,6 @@ Never commit either bearer-token value. Restart or open a new Codex session afte
 5. Run `php artisan migrate --force` during release and `php artisan optimize` after environment variables are available.
 6. Point the platform health check to `/up` and verify `/tiktok/callback` over HTTPS.
 7. Register the exact HTTPS callback URL in TikTok's developer console.
+8. Run a persistent queue worker for client dashboard reports, for example `php artisan queue:work --sleep=3 --tries=1 --timeout=300`. Set `DB_QUEUE_RETRY_AFTER=360` so a long Shop report is not run twice.
 
 The standard Laravel `.gitignore` excludes `.env`, vendor packages, local databases, caches, and generated assets. Repository visibility remains controlled in Bitbucket and should stay private.

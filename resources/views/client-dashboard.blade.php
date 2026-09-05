@@ -5,14 +5,20 @@
     </head>
     <body><main>
         <div class="top"><div><p style="color:#28d7d0;font-weight:900;letter-spacing:.12em;text-transform:uppercase">GoCommerce TikTok Analytics</p><h1>{{ $client->name }}</h1></div><form method="POST" action="{{ route('client.logout') }}">@csrf<button>Sign out</button></form></div>
-        <section><form class="filters" method="GET" action="{{ route('client.dashboard') }}"><label>Shop<select name="shop_id">@foreach ($shops as $shop)<option value="{{ $shop->shop_id }}" @selected($selectedShop?->shop_id === $shop->shop_id)>{{ $shop->name }} · {{ $shop->region }}</option>@endforeach</select></label><label>Start date<input name="start_date" type="date" value="{{ $startDate }}"></label><label>End date (exclusive)<input name="end_date" type="date" value="{{ $endDate }}"></label><button>Refresh</button></form></section>
-        @if ($error)<section class="error">{{ $error }}</section>@elseif($summary)
-            @php($orders = data_get($summary, 'data.order_value_summary', []))
-            @php($status = data_get($summary, 'data.status_summary', []))
-            <section><p class="muted">Source: TikTok Shop Open API · {{ $summary['date_range']['start'] }} to {{ $summary['date_range']['end_exclusive'] }} exclusive · {{ $summary['date_range']['timezone'] }} · Total Shop data, not TikTok Ads-attributed revenue.</p>
+        <section><form class="filters" method="POST" action="{{ route('client.dashboard.reports.store') }}">@csrf<label>Shop<select name="shop_id">@foreach ($shops as $shop)<option value="{{ $shop->shop_id }}" @selected($selectedShop?->shop_id === $shop->shop_id)>{{ $shop->name }} · {{ $shop->region }}</option>@endforeach</select></label><label>Start date<input name="start_date" type="date" value="{{ $startDate }}"></label><label>End date (exclusive)<input name="end_date" type="date" value="{{ $endDate }}"></label><button>Request refresh</button></form><p class="muted">Reports are prepared in the background, so large date ranges never block your sign-in or dashboard.</p></section>
+        @if($report?->status === 'pending' || $report?->status === 'running')
+            <section><strong>Report is being prepared.</strong><p class="muted">This page refreshes automatically in 10 seconds.</p><meta http-equiv="refresh" content="10"></section>
+        @elseif($report?->status === 'failed')
+            <section class="error">{{ $report->error_message }}</section>
+        @elseif($report?->status === 'completed')
+            @php($summary = $report->result ?? [])
+            @php($orders = $summary['order_value_summary'] ?? [])
+            @php($status = $summary['status_summary'] ?? [])
+            <section><p class="muted">Source: {{ $summary['source'] ?? 'TikTok Shop Open API' }} · {{ data_get($summary, 'date_range.start') }} to {{ data_get($summary, 'date_range.end_exclusive') }} exclusive · {{ data_get($summary, 'date_range.timezone') }} · {{ $summary['attribution'] ?? 'Total Shop data, not TikTok Ads-attributed revenue.' }}</p>
                 <div class="cards"><div class="card"><span class="muted">Calculated GMV</span><div class="number">{{ number_format((float) ($orders['calculated_gmv'] ?? 0), 2) }} {{ $orders['currency'] ?? 'LOCAL' }}</div></div><div class="card"><span class="muted">Orders scanned</span><div class="number">{{ number_format((int) ($orders['orders_scanned'] ?? 0)) }}</div></div><div class="card"><span class="muted">Delivered</span><div class="number">{{ number_format((int) ($status['delivered_or_completed'] ?? 0)) }}</div></div><div class="card"><span class="muted">Pages fetched</span><div class="number">{{ number_format((int) ($status['pages_fetched'] ?? 0)) }}</div></div></div>
                 <p class="{{ ($orders['complete'] ?? false) ? 'muted' : 'error' }}">{{ ($orders['complete'] ?? false) ? 'Complete: all pages and required line-item values were received.' : 'Incomplete: do not use this result as an exact total. Reconcile with Seller Center.' }}</p>
             </section>
+        @elseif($selectedShop)<section class="muted">Choose a date range and request a report.</section>
         @else<section class="error">No Shop is assigned to this client access.</section>@endif
     </main></body>
 </html>
