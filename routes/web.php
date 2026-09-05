@@ -41,6 +41,12 @@ Route::get('/admin/client-access', [ClientAccessAdminController::class, 'index']
 Route::post('/admin/client-access/clients', [ClientAccessAdminController::class, 'storeClient'])
     ->middleware('throttle:10,1')
     ->name('client-access.admin.clients.store');
+Route::post('/admin/client-access/clients/{client}/reset-password', [ClientAccessAdminController::class, 'resetClientPassword'])
+    ->middleware('throttle:10,1')
+    ->name('client-access.admin.clients.reset-password');
+Route::delete('/admin/client-access/clients/{client}', [ClientAccessAdminController::class, 'destroyClient'])
+    ->middleware('throttle:10,1')
+    ->name('client-access.admin.clients.destroy');
 Route::post('/admin/client-access/oauth-invitations', [ClientAccessAdminController::class, 'storeOauthInvitation'])
     ->middleware('throttle:10,1')
     ->name('client-access.admin.oauth-invitations.store');

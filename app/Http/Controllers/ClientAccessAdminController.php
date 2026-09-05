@@ -84,6 +84,35 @@ class ClientAccessAdminController extends Controller
         return redirect()->route('client-access.admin');
     }
 
+    public function resetClientPassword(Request $request, User $client): RedirectResponse
+    {
+        abort_unless((bool) $request->session()->get('client_access_admin_authenticated', false), 403);
+        abort_if($client->is_admin, 404);
+
+        $password = Str::password(18, true, true, false, false);
+        $client->update([
+            'password' => Hash::make($password),
+            'must_change_password' => true,
+        ]);
+        $request->session()->flash('client_access_credentials', [
+            'name' => $client->name,
+            'username' => $client->username,
+            'temporary_password' => $password,
+        ]);
+
+        return redirect()->route('client-access.admin');
+    }
+
+    public function destroyClient(Request $request, User $client): RedirectResponse
+    {
+        abort_unless((bool) $request->session()->get('client_access_admin_authenticated', false), 403);
+        abort_if($client->is_admin, 404);
+
+        $client->delete();
+
+        return redirect()->route('client-access.admin')->with('client_access_notice', 'Client dashboard access was deleted.');
+    }
+
     public function storeOauthInvitation(Request $request): RedirectResponse
     {
         abort_unless((bool) $request->session()->get('client_access_admin_authenticated', false), 403);

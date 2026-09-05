@@ -36,13 +36,21 @@ class ClientDashboardController extends Controller
 
     public function editPassword(Request $request): View|RedirectResponse
     {
-        return $this->requireClient($request)->must_change_password ? view('client-password') : redirect()->route('client.dashboard');
+        $client = $this->requireClient($request);
+
+        return view('client-password', ['mustChangePassword' => $client->must_change_password]);
     }
 
     public function updatePassword(Request $request): RedirectResponse
     {
         $client = $this->requireClient($request);
-        $validated = $request->validate(['password' => ['required', 'string', 'min:12', 'confirmed']]);
+        $validated = $request->validate([
+            'current_password' => [$client->must_change_password ? 'nullable' : 'required', 'string'],
+            'password' => ['required', 'string', 'min:12', 'confirmed'],
+        ]);
+        if (! $client->must_change_password && ! Hash::check((string) $validated['current_password'], $client->password)) {
+            return back()->withErrors(['current_password' => 'Your current password is incorrect.']);
+        }
         $client->update(['password' => Hash::make($validated['password']), 'must_change_password' => false]);
 
         return redirect()->route('client.dashboard');

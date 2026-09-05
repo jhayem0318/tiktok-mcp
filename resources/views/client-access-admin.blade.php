@@ -10,6 +10,7 @@
                 <p>Client: <code>{{ $credentials['name'] }}</code><br>Username: <code>{{ $credentials['username'] }}</code><br>Temporary password: <code>{{ $credentials['temporary_password'] }}</code></p>
             </section>
         @endif
+        @if (session('client_access_notice'))<section class="notice">{{ session('client_access_notice') }}</section>@endif
         @if (is_array(session('oauth_invitation_credentials')))
             <section class="notice"><strong>Copy this OAuth invitation code now.</strong> It is shown only once.
                 <p>Label: <code>{{ session('oauth_invitation_credentials.label') }}</code><br>OAuth invitation code: <code>{{ session('oauth_invitation_credentials.oauth_invitation_code') }}</code></p>
@@ -34,8 +35,8 @@
                 <div><button>Create OAuth invitation</button></div>
             </form>
         </section>
-        <section><h2>Dashboard clients</h2><table><thead><tr><th>Client</th><th>Dashboard access</th><th>Assigned Shops</th></tr></thead><tbody>
-            @forelse ($clients as $client)<tr><td><strong>{{ $client->name }}</strong><br><span class="muted">{{ $client->username }}</span></td><td>{{ $client->access_expires_at?->format('Y-m-d H:i') ?? 'No expiry' }}<br><span class="muted">{{ $client->must_change_password ? 'Password change pending' : 'Password set' }}</span></td><td><span class="muted">{{ $client->shops->pluck('name')->join(', ') ?: 'No Shop assigned' }}</span></td></tr>@empty<tr><td colspan="3" class="muted">No client accounts yet.</td></tr>@endforelse
+        <section><h2>Dashboard clients</h2><table><thead><tr><th>Client</th><th>Dashboard access</th><th>Assigned Shops</th><th>Actions</th></tr></thead><tbody>
+            @forelse ($clients as $client)<tr><td><strong>{{ $client->name }}</strong><br><span class="muted">{{ $client->username }}</span></td><td>{{ $client->access_expires_at?->format('Y-m-d H:i') ?? 'No expiry' }}<br><span class="muted">{{ $client->must_change_password ? 'Password change pending' : 'Password set' }}</span></td><td><span class="muted">{{ $client->shops->pluck('name')->join(', ') ?: 'No Shop assigned' }}</span></td><td><form method="POST" action="{{ route('client-access.admin.clients.reset-password', $client) }}">@csrf<button>Reset password</button></form><form method="POST" action="{{ route('client-access.admin.clients.destroy', $client) }}" onsubmit="return confirm('Delete this dashboard access? This cannot be undone.')">@csrf @method('DELETE')<button class="danger">Delete access</button></form></td></tr>@empty<tr><td colspan="4" class="muted">No client accounts yet.</td></tr>@endforelse
         </tbody></table></section>
         <section><h2>OAuth invitations</h2><table><thead><tr><th>Label</th><th>Expiry</th><th>Assigned Shops</th><th>Action</th></tr></thead><tbody>
             @forelse ($oauthInvitations as $invite)<tr><td><strong>{{ $invite->label }}</strong></td><td>{{ $invite->expires_at?->format('Y-m-d H:i') ?? 'No expiry' }}<br><span class="muted">{{ $invite->revoked_at ? 'Revoked' : 'Active' }}</span></td><td><span class="muted">{{ $invite->shops->pluck('name')->join(', ') ?: 'No Shop assigned' }}</span></td><td>@if (! $invite->revoked_at)<form method="POST" action="{{ route('client-access.admin.invites.revoke', $invite) }}">@csrf<button class="danger">Revoke OAuth</button></form>@endif</td></tr>@empty<tr><td colspan="4" class="muted">No OAuth invitations yet.</td></tr>@endforelse
