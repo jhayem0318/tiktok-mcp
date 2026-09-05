@@ -125,12 +125,13 @@ class RemoteMcpOAuthController extends Controller
     {
         $validated = $request->validate(['invite_code' => ['required', 'string', 'max:255']]);
         $invite = RemoteMcpInvite::query()
+            ->with('user')
             ->whereNull('revoked_at')
             ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))
             ->get()
             ->first(fn (RemoteMcpInvite $candidate): bool => Hash::check($validated['invite_code'], $candidate->code_hash));
 
-        if ($invite === null) {
+        if ($invite === null || ! $invite->isActive()) {
             return back()->withErrors(['invite_code' => 'That invitation is invalid, expired, or revoked.']);
         }
 
@@ -201,9 +202,10 @@ class RemoteMcpOAuthController extends Controller
         }
 
         $client = RemoteMcpClient::query()->where('client_id', $parameters['client_id'] ?? null)->first();
-        $invite = RemoteMcpInvite::query()->whereKey($inviteId)->whereNull('revoked_at')->first();
+        $invite = RemoteMcpInvite::query()->with('user')->whereKey($inviteId)->whereNull('revoked_at')->first();
 
-        if ($client === null || $invite === null || ! in_array($parameters['redirect_uri'] ?? '', $client->redirect_uris, true)) {
+        if ($client === null || $invite === null || ! $invite->isActive()
+            || ! in_array($parameters['redirect_uri'] ?? '', $client->redirect_uris, true)) {
             return $this->oauthError('invalid_request', 'The authorization request is no longer valid.', 400);
         }
 

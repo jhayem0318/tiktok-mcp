@@ -7,10 +7,11 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable(['name', 'email', 'password', 'access_expires_at', 'must_change_password'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -27,6 +28,20 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_admin' => 'boolean',
+            'access_expires_at' => 'datetime',
+            'must_change_password' => 'boolean',
         ];
+    }
+
+    public function remoteMcpInvites(): HasMany
+    {
+        return $this->hasMany(RemoteMcpInvite::class);
+    }
+
+    public function hasActiveClientAccess(): bool
+    {
+        return ! $this->is_admin
+            && ($this->access_expires_at === null || $this->access_expires_at->isFuture());
     }
 }

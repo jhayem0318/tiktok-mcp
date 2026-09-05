@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Client dashboard</title>
+        <style>:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#091019;color:#e9f1fc;font:14px/1.5 system-ui}main{max-width:1120px;margin:auto;padding:32px}.top{display:flex;justify-content:space-between;gap:16px;align-items:start}section{margin:20px 0;padding:22px;border:1px solid #29384f;border-radius:16px;background:#111a27}.filters{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;align-items:end}label{display:grid;gap:5px;font-weight:700}select,input{padding:10px;border:1px solid #34435b;border-radius:8px;background:#0b1220;color:#fff}button{padding:10px 14px;border:0;border-radius:8px;background:#28d7d0;color:#061015;font-weight:800}.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.card{padding:16px;border:1px solid #29384f;border-radius:12px;background:#0b1220}.number{font-size:24px;font-weight:900}.muted{color:#9badc4}.error{border-color:#f35b79;color:#ffc4d0}@media(max-width:760px){.filters,.cards{grid-template-columns:1fr}}</style>
+    </head>
+    <body><main>
+        <div class="top"><div><p style="color:#28d7d0;font-weight:900;letter-spacing:.12em;text-transform:uppercase">GoCommerce TikTok Analytics</p><h1>{{ $client->name }}</h1></div><form method="POST" action="{{ route('client.logout') }}">@csrf<button>Sign out</button></form></div>
+        <section><form class="filters" method="GET" action="{{ route('client.dashboard') }}"><label>Shop<select name="shop_id">@foreach ($shops as $shop)<option value="{{ $shop->shop_id }}" @selected($selectedShop?->shop_id === $shop->shop_id)>{{ $shop->name }} · {{ $shop->region }}</option>@endforeach</select></label><label>Start date<input name="start_date" type="date" value="{{ $startDate }}"></label><label>End date (exclusive)<input name="end_date" type="date" value="{{ $endDate }}"></label><button>Refresh</button></form></section>
+        @if ($error)<section class="error">{{ $error }}</section>@elseif($summary)
+            @php($orders = data_get($summary, 'data.order_value_summary', []))
+            @php($status = data_get($summary, 'data.status_summary', []))
+            <section><p class="muted">Source: TikTok Shop Open API · {{ $summary['date_range']['start'] }} to {{ $summary['date_range']['end_exclusive'] }} exclusive · {{ $summary['date_range']['timezone'] }} · Total Shop data, not TikTok Ads-attributed revenue.</p>
+                <div class="cards"><div class="card"><span class="muted">Calculated GMV</span><div class="number">{{ number_format((float) ($orders['calculated_gmv'] ?? 0), 2) }} {{ $orders['currency'] ?? 'LOCAL' }}</div></div><div class="card"><span class="muted">Orders scanned</span><div class="number">{{ number_format((int) ($orders['orders_scanned'] ?? 0)) }}</div></div><div class="card"><span class="muted">Delivered</span><div class="number">{{ number_format((int) ($status['delivered_or_completed'] ?? 0)) }}</div></div><div class="card"><span class="muted">Pages fetched</span><div class="number">{{ number_format((int) ($status['pages_fetched'] ?? 0)) }}</div></div></div>
+                <p class="{{ ($orders['complete'] ?? false) ? 'muted' : 'error' }}">{{ ($orders['complete'] ?? false) ? 'Complete: all pages and required line-item values were received.' : 'Incomplete: do not use this result as an exact total. Reconcile with Seller Center.' }}</p>
+            </section>
+        @else<section class="error">No Shop is assigned to this client access.</section>@endif
+    </main></body>
+</html>

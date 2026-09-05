@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exceptions\TikTokAuthorizationException;
 use App\Exceptions\TikTokShopApiException;
 use App\Models\RemoteMcpAccessToken;
+use App\Models\TikTokShop;
 use App\Services\TikTokShopMcpTools;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,7 +20,9 @@ class TikTokShopMcpController extends Controller
         $providedToken = $request->header('X-MCP-Key')
             ?? $request->bearerToken();
 
-        if (! $this->authenticated($request, $providedToken)) {
+        $authentication = $this->authenticated($request, $providedToken);
+
+        if ($authentication === false) {
             return $this->unauthorized($request);
         }
 
@@ -51,12 +54,12 @@ class TikTokShopMcpController extends Controller
             ]),
             'ping' => $this->result($id, (object) []),
             'tools/list' => $this->result($id, ['tools' => $tools->definitions()]),
-            'tools/call' => $this->callTool($id, $message, $tools),
+            'tools/call' => $this->callTool($id, $message, $tools, $authentication),
             default => $this->error($id, -32601, 'Method not found'),
         };
     }
 
-    private function authenticated(Request $request, mixed $providedToken): bool
+    private function authenticated(Request $request, mixed $providedToken): bool|RemoteMcpAccessToken
     {
         if (! is_string($providedToken) || $providedToken === '') {
             return false;
@@ -68,12 +71,18 @@ class TikTokShopMcpController extends Controller
             }
 
             $accessToken = RemoteMcpAccessToken::query()
+                ->with(['invite.user', 'invite.shops'])
                 ->where('token_hash', hash('sha256', $providedToken))
                 ->whereNull('revoked_at')
                 ->where('expires_at', '>', now())
                 ->first();
 
-            return $accessToken !== null && in_array('tiktok_shop.read', $accessToken->scopes, true);
+            return $accessToken !== null
+                && in_array('tiktok_shop.read', $accessToken->scopes, true)
+                && $accessToken->invite !== null
+                && $accessToken->invite->isActive()
+                ? $accessToken
+                : false;
         }
 
         $token = config('services.tiktok.mcp_bearer_token');
@@ -106,7 +115,12 @@ class TikTokShopMcpController extends Controller
     }
 
     /** @param array<string, mixed> $message */
-    private function callTool(mixed $id, array $message, TikTokShopMcpTools $tools): JsonResponse
+    private function callTool(
+        mixed $id,
+        array $message,
+        TikTokShopMcpTools $tools,
+        bool|RemoteMcpAccessToken $authentication,
+    ): JsonResponse
     {
         $params = is_array($message['params'] ?? null) ? $message['params'] : [];
         $name = $params['name'] ?? null;
@@ -117,7 +131,9 @@ class TikTokShopMcpController extends Controller
         }
 
         try {
-            $result = $tools->call($name, $arguments);
+            $result = $authentication instanceof RemoteMcpAccessToken && $authentication->invite?->user_id !== null
+                ? $tools->callForShop($name, $arguments, $this->assignedShop($authentication, $arguments))
+                : $tools->call($name, $arguments);
 
             return $this->result($id, [
                 'content' => [[
@@ -136,6 +152,35 @@ class TikTokShopMcpController extends Controller
 
             return $this->toolError($id, 'The TikTok Shop read failed.');
         }
+    }
+
+    /** @param array<string, mixed> $arguments */
+    private function assignedShop(RemoteMcpAccessToken $accessToken, array $arguments): TikTokShop
+    {
+        $invite = $accessToken->invite;
+        $shops = $invite?->shops ?? collect();
+
+        if ($shops->isEmpty()) {
+            throw new InvalidArgumentException('No TikTok Shop is assigned to this client access.');
+        }
+
+        $requestedShopId = $arguments['shop_id'] ?? null;
+
+        if ($requestedShopId === null && $shops->count() === 1) {
+            return $shops->first();
+        }
+
+        if (! is_string($requestedShopId) || $requestedShopId === '') {
+            throw new InvalidArgumentException('shop_id is required because this client access has multiple Shops.');
+        }
+
+        $shop = $shops->first(fn (TikTokShop $shop): bool => $shop->shop_id === $requestedShopId);
+
+        if ($shop === null) {
+            throw new InvalidArgumentException('That Shop is not assigned to this client access.');
+        }
+
+        return $shop;
     }
 
     private function toolError(mixed $id, string $message): JsonResponse

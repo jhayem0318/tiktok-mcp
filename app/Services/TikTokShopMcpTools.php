@@ -41,6 +41,10 @@ class TikTokShopMcpTools
             'inputSchema' => [
                 'type' => 'object',
                 'properties' => [
+                    'shop_id' => [
+                        'type' => 'string',
+                        'description' => 'Required when your client access is assigned to more than one Shop. Use only a Shop ID assigned to your access.',
+                    ],
                     'start_date' => [
                         'type' => 'string',
                         'description' => 'Start date in YYYY-MM-DD. Defaults to seven completed days ago.',

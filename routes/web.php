@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\ClientAccessAdminController;
+use App\Http\Controllers\ClientDashboardController;
 use App\Http\Controllers\RemoteMcpOAuthController;
 use App\Http\Controllers\TikTokShopCallbackController;
 use App\Http\Controllers\TikTokShopReviewController;
@@ -27,6 +29,38 @@ Route::post('/tiktok/review/login', [TikTokShopReviewLoginController::class, 'st
     ->name('tiktok.review.login.store');
 Route::post('/tiktok/review/logout', [TikTokShopReviewLoginController::class, 'destroy'])
     ->name('tiktok.review.logout');
+
+Route::get('/admin/client-access/login', [ClientAccessAdminController::class, 'login'])
+    ->name('client-access.admin.login');
+Route::post('/admin/client-access/login', [ClientAccessAdminController::class, 'authenticate'])
+    ->middleware('throttle:10,1')
+    ->name('client-access.admin.login.store');
+Route::get('/admin/client-access', [ClientAccessAdminController::class, 'index'])
+    ->middleware('throttle:30,1')
+    ->name('client-access.admin');
+Route::post('/admin/client-access', [ClientAccessAdminController::class, 'store'])
+    ->middleware('throttle:10,1')
+    ->name('client-access.admin.store');
+Route::post('/admin/client-access/invites/{invite}/revoke', [ClientAccessAdminController::class, 'revokeInvite'])
+    ->middleware('throttle:10,1')
+    ->name('client-access.admin.invites.revoke');
+Route::post('/admin/client-access/logout', [ClientAccessAdminController::class, 'logout'])
+    ->name('client-access.admin.logout');
+
+Route::get('/client/login', [ClientDashboardController::class, 'login'])->name('client.login');
+Route::post('/client/login', [ClientDashboardController::class, 'authenticate'])
+    ->middleware('throttle:10,1')
+    ->name('client.login.store');
+Route::get('/client/password', [ClientDashboardController::class, 'editPassword'])
+    ->name('client.password.edit');
+Route::post('/client/password', [ClientDashboardController::class, 'updatePassword'])
+    ->middleware('throttle:10,1')
+    ->name('client.password.update');
+Route::get('/client/dashboard', [ClientDashboardController::class, 'dashboard'])
+    ->middleware('throttle:30,1')
+    ->name('client.dashboard');
+Route::post('/client/logout', [ClientDashboardController::class, 'logout'])
+    ->name('client.logout');
 
 Route::get('/.well-known/oauth-protected-resource', [RemoteMcpOAuthController::class, 'protectedResource'])
     ->name('remote-mcp.protected-resource');

@@ -50,6 +50,8 @@ return [
         'mcp_bearer_token' => env('TIKTOK_MCP_BEARER_TOKEN'),
         'review_username' => env('TIKTOK_REVIEW_USERNAME'),
         'review_password' => env('TIKTOK_REVIEW_PASSWORD'),
+        'admin_username' => env('TIKTOK_ADMIN_USERNAME'),
+        'admin_password' => env('TIKTOK_ADMIN_PASSWORD'),
         'remote_mcp_enabled' => env('TIKTOK_REMOTE_MCP_ENABLED', false),
         'remote_mcp_access_token_ttl' => (int) env('TIKTOK_REMOTE_MCP_ACCESS_TOKEN_TTL', 3600),
         'remote_mcp_authorization_code_ttl' => (int) env('TIKTOK_REMOTE_MCP_AUTHORIZATION_CODE_TTL', 300),
