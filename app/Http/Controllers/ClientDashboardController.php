@@ -21,11 +21,11 @@ class ClientDashboardController extends Controller
 
     public function authenticate(Request $request): RedirectResponse
     {
-        $validated = $request->validate(['email' => ['required', 'email'], 'password' => ['required', 'string']]);
-        $client = User::query()->where('email', $validated['email'])->where('is_admin', false)->first();
+        $validated = $request->validate(['username' => ['required', 'string'], 'password' => ['required', 'string']]);
+        $client = User::query()->where('username', $validated['username'])->where('is_admin', false)->first();
 
         if ($client === null || ! $client->hasActiveClientAccess() || ! Hash::check($validated['password'], $client->password)) {
-            return back()->withErrors(['email' => 'The email, password, or client access is invalid.'])->onlyInput('email');
+            return back()->withErrors(['username' => 'The username, password, or client access is invalid.'])->onlyInput('username');
         }
 
         $request->session()->regenerate();
@@ -111,8 +111,6 @@ class ClientDashboardController extends Controller
     /** @return Collection<int, TikTokShop> */
     private function assignedShops(User $client): Collection
     {
-        return $client->remoteMcpInvites()->with('shops')->whereNull('revoked_at')
-            ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))
-            ->get()->flatMap(fn ($invite) => $invite->shops)->unique('id')->values();
+        return $client->shops()->orderBy('name')->get();
     }
 }

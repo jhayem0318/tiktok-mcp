@@ -38,9 +38,12 @@ Route::post('/admin/client-access/login', [ClientAccessAdminController::class, '
 Route::get('/admin/client-access', [ClientAccessAdminController::class, 'index'])
     ->middleware('throttle:30,1')
     ->name('client-access.admin');
-Route::post('/admin/client-access', [ClientAccessAdminController::class, 'store'])
+Route::post('/admin/client-access/clients', [ClientAccessAdminController::class, 'storeClient'])
     ->middleware('throttle:10,1')
-    ->name('client-access.admin.store');
+    ->name('client-access.admin.clients.store');
+Route::post('/admin/client-access/oauth-invitations', [ClientAccessAdminController::class, 'storeOauthInvitation'])
+    ->middleware('throttle:10,1')
+    ->name('client-access.admin.oauth-invitations.store');
 Route::post('/admin/client-access/invites/{invite}/revoke', [ClientAccessAdminController::class, 'revokeInvite'])
     ->middleware('throttle:10,1')
     ->name('client-access.admin.invites.revoke');

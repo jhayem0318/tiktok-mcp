@@ -50,39 +50,59 @@ class ClientAccessAdminController extends Controller
 
         return view('client-access-admin', [
             'shops' => TikTokShop::query()->where('name', 'not like', 'SANDBOX\_%')->orderBy('name')->get(),
-            'clients' => User::query()->where('is_admin', false)->with('remoteMcpInvites.shops')->orderBy('name')->get(),
+            'clients' => User::query()->where('is_admin', false)->with('shops')->orderBy('name')->get(),
+            'oauthInvitations' => RemoteMcpInvite::query()->with('shops')->latest()->get(),
             'credentials' => $request->session()->pull('client_access_credentials'),
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function storeClient(Request $request): RedirectResponse
     {
         abort_unless((bool) $request->session()->get('client_access_admin_authenticated', false), 403);
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
+            'username' => ['required', 'string', 'min:3', 'max:60', 'alpha_dash', Rule::unique('users', 'username')],
             'access_expires_at' => ['nullable', 'date', 'after:now'],
-            'invite_expires_at' => ['nullable', 'date', 'after:now'],
             'shop_ids' => ['required', 'array', 'min:1'],
             'shop_ids.*' => ['integer', Rule::exists('tik_tok_shops', 'id')],
         ]);
         $password = Str::password(18, true, true, false, false);
-        $inviteCode = Str::random(40);
-        [$client, $invite] = DB::transaction(function () use ($validated, $password, $inviteCode): array {
+        $client = DB::transaction(function () use ($validated, $password): User {
             $client = User::query()->create([
-                'name' => $validated['name'], 'email' => $validated['email'], 'password' => Hash::make($password),
+                'name' => $validated['name'], 'username' => $validated['username'],
+                'email' => $validated['username'].'@clients.invalid', 'password' => Hash::make($password),
                 'access_expires_at' => $validated['access_expires_at'] ?? null, 'must_change_password' => true,
             ]);
+            $client->shops()->sync($validated['shop_ids']);
+
+            return $client;
+        });
+        $request->session()->flash('client_access_credentials', [
+            'name' => $client->name, 'username' => $client->username, 'temporary_password' => $password,
+        ]);
+
+        return redirect()->route('client-access.admin');
+    }
+
+    public function storeOauthInvitation(Request $request): RedirectResponse
+    {
+        abort_unless((bool) $request->session()->get('client_access_admin_authenticated', false), 403);
+        $validated = $request->validate([
+            'label' => ['required', 'string', 'max:255'],
+            'invite_expires_at' => ['nullable', 'date', 'after:now'],
+            'shop_ids' => ['required', 'array', 'min:1'],
+            'shop_ids.*' => ['integer', Rule::exists('tik_tok_shops', 'id')],
+        ]);
+        $inviteCode = Str::random(40);
+        DB::transaction(function () use ($validated, $inviteCode): void {
             $invite = RemoteMcpInvite::query()->create([
-                'user_id' => $client->id, 'label' => $client->name, 'code_hash' => Hash::make($inviteCode),
+                'label' => $validated['label'], 'code_hash' => Hash::make($inviteCode),
                 'expires_at' => $validated['invite_expires_at'] ?? null,
             ]);
             $invite->shops()->sync($validated['shop_ids']);
-
-            return [$client, $invite];
         });
-        $request->session()->flash('client_access_credentials', [
-            'name' => $client->name, 'email' => $client->email, 'temporary_password' => $password, 'oauth_invitation_code' => $inviteCode,
+        $request->session()->flash('oauth_invitation_credentials', [
+            'label' => $validated['label'], 'oauth_invitation_code' => $inviteCode,
         ]);
 
         return redirect()->route('client-access.admin');

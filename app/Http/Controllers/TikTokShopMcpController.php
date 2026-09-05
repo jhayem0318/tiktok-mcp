@@ -131,7 +131,7 @@ class TikTokShopMcpController extends Controller
         }
 
         try {
-            $result = $authentication instanceof RemoteMcpAccessToken && $authentication->invite?->user_id !== null
+            $result = $authentication instanceof RemoteMcpAccessToken && $authentication->invite?->shops->isNotEmpty()
                 ? $tools->callForShop($name, $arguments, $this->assignedShop($authentication, $arguments))
                 : $tools->call($name, $arguments);
 

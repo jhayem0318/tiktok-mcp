@@ -8,10 +8,11 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password', 'access_expires_at', 'must_change_password'])]
+#[Fillable(['name', 'username', 'email', 'password', 'access_expires_at', 'must_change_password'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -37,6 +38,11 @@ class User extends Authenticatable
     public function remoteMcpInvites(): HasMany
     {
         return $this->hasMany(RemoteMcpInvite::class);
+    }
+
+    public function shops(): BelongsToMany
+    {
+        return $this->belongsToMany(TikTokShop::class, 'tik_tok_shop_user')->withTimestamps();
     }
 
     public function hasActiveClientAccess(): bool

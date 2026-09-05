@@ -6,10 +6,10 @@
     <body><main>
         <p style="color:#28d7d0;font-weight:800;letter-spacing:.12em;text-transform:uppercase">GoCommerce TikTok Analytics</p>
         <h1>Client sign in</h1>
-        <p>Use the temporary credentials supplied by your administrator.</p>
+        <p>Use the username and temporary password supplied by your administrator.</p>
         @if ($errors->any())<p class="error">{{ $errors->first() }}</p>@endif
         <form method="POST" action="{{ route('client.login.store') }}">@csrf
-            <label>Email<input name="email" type="email" value="{{ old('email') }}" required autocomplete="email"></label>
+            <label>Username<input name="username" value="{{ old('username') }}" required autocomplete="username"></label>
             <label>Password<input type="password" name="password" required autocomplete="current-password"></label>
             <button>Sign in</button>
         </form>

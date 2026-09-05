@@ -7,21 +7,38 @@
         <div class="top"><div><p style="color:#28d7d0;font-weight:900;letter-spacing:.12em;text-transform:uppercase">GoCommerce</p><h1>Client access</h1></div><form method="POST" action="{{ route('client-access.admin.logout') }}">@csrf<button>Sign out</button></form></div>
         @if (is_array($credentials))
             <section class="notice"><strong>Copy these credentials now.</strong> They are shown only once.
-                <p>Email: <code>{{ $credentials['email'] }}</code><br>Temporary password: <code>{{ $credentials['temporary_password'] }}</code><br>OAuth invitation code: <code>{{ $credentials['oauth_invitation_code'] }}</code></p>
+                <p>Client: <code>{{ $credentials['name'] }}</code><br>Username: <code>{{ $credentials['username'] }}</code><br>Temporary password: <code>{{ $credentials['temporary_password'] }}</code></p>
+            </section>
+        @endif
+        @if (is_array(session('oauth_invitation_credentials')))
+            <section class="notice"><strong>Copy this OAuth invitation code now.</strong> It is shown only once.
+                <p>Label: <code>{{ session('oauth_invitation_credentials.label') }}</code><br>OAuth invitation code: <code>{{ session('oauth_invitation_credentials.oauth_invitation_code') }}</code></p>
             </section>
         @endif
         @if ($errors->any())<section style="border-color:#f35b79;color:#ffc4d0">{{ $errors->first() }}</section>@endif
         <section>
-            <h2>Create client access</h2>
-            <p class="muted">The client must change the generated password on first login. Client and OAuth invitation expiries are independent.</p>
-            <form method="POST" action="{{ route('client-access.admin.store') }}">@csrf
-                <div class="grid"><label>Client name<input name="name" value="{{ old('name') }}" required></label><label>Client email<input name="email" type="email" value="{{ old('email') }}" required></label><label>Dashboard access expires (optional)<input name="access_expires_at" type="datetime-local" value="{{ old('access_expires_at') }}"></label><label>OAuth invitation expires (optional)<input name="invite_expires_at" type="datetime-local" value="{{ old('invite_expires_at') }}"></label></div>
+            <h2>Create client dashboard access</h2>
+            <p class="muted">Creates a dashboard account only. The client must change the generated password on first login; no OAuth token is created.</p>
+            <form method="POST" action="{{ route('client-access.admin.clients.store') }}">@csrf
+                <div class="grid"><label>Client name<input name="name" value="{{ old('name') }}" required></label><label>Username<input name="username" value="{{ old('username') }}" required autocomplete="off"></label><label>Dashboard access expires (optional)<input name="access_expires_at" type="datetime-local" value="{{ old('access_expires_at') }}"></label></div>
                 <div><strong>Assigned Shops</strong><div class="shops">@forelse ($shops as $shop)<label style="font-weight:500"><span><input type="checkbox" name="shop_ids[]" value="{{ $shop->id }}" @checked(in_array($shop->id, old('shop_ids', [])))> {{ $shop->name }} · {{ $shop->region }}</span></label>@empty<p class="muted">No production Shop is currently authorized.</p>@endforelse</div></div>
-                <div><button>Create client, password, and OAuth invitation</button></div>
+                <div><button>Create client dashboard account</button></div>
             </form>
         </section>
-        <section><h2>Clients</h2><table><thead><tr><th>Client</th><th>Dashboard access</th><th>OAuth invitations / Shop access</th><th>Action</th></tr></thead><tbody>
-            @forelse ($clients as $client)<tr><td><strong>{{ $client->name }}</strong><br><span class="muted">{{ $client->email }}</span></td><td>{{ $client->access_expires_at?->format('Y-m-d H:i') ?? 'No expiry' }}<br><span class="muted">{{ $client->must_change_password ? 'Password change pending' : 'Password set' }}</span></td><td>@forelse ($client->remoteMcpInvites as $invite)<div><strong>{{ $invite->revoked_at ? 'Revoked' : 'Active' }}</strong> · expires {{ $invite->expires_at?->format('Y-m-d H:i') ?? 'never' }}<br><span class="muted">{{ $invite->shops->pluck('name')->join(', ') ?: 'No Shop assigned' }}</span></div>@empty<span class="muted">No invitation</span>@endforelse</td><td>@foreach ($client->remoteMcpInvites->whereNull('revoked_at') as $invite)<form method="POST" action="{{ route('client-access.admin.invites.revoke', $invite) }}">@csrf<button class="danger">Revoke OAuth</button></form>@endforeach</td></tr>@empty<tr><td colspan="4" class="muted">No client accounts yet.</td></tr>@endforelse
+        <section>
+            <h2>Create OAuth invitation</h2>
+            <p class="muted">Creates a remote MCP OAuth invitation only. It does not create a client dashboard account.</p>
+            <form method="POST" action="{{ route('client-access.admin.oauth-invitations.store') }}">@csrf
+                <div class="grid"><label>Invitation label<input name="label" value="{{ old('label') }}" placeholder="e.g. Acme — Claude" required></label><label>OAuth invitation expires (optional)<input name="invite_expires_at" type="datetime-local" value="{{ old('invite_expires_at') }}"></label></div>
+                <div><strong>Assigned Shops</strong><div class="shops">@forelse ($shops as $shop)<label style="font-weight:500"><span><input type="checkbox" name="shop_ids[]" value="{{ $shop->id }}"> {{ $shop->name }} · {{ $shop->region }}</span></label>@empty<p class="muted">No production Shop is currently authorized.</p>@endforelse</div></div>
+                <div><button>Create OAuth invitation</button></div>
+            </form>
+        </section>
+        <section><h2>Dashboard clients</h2><table><thead><tr><th>Client</th><th>Dashboard access</th><th>Assigned Shops</th></tr></thead><tbody>
+            @forelse ($clients as $client)<tr><td><strong>{{ $client->name }}</strong><br><span class="muted">{{ $client->username }}</span></td><td>{{ $client->access_expires_at?->format('Y-m-d H:i') ?? 'No expiry' }}<br><span class="muted">{{ $client->must_change_password ? 'Password change pending' : 'Password set' }}</span></td><td><span class="muted">{{ $client->shops->pluck('name')->join(', ') ?: 'No Shop assigned' }}</span></td></tr>@empty<tr><td colspan="3" class="muted">No client accounts yet.</td></tr>@endforelse
+        </tbody></table></section>
+        <section><h2>OAuth invitations</h2><table><thead><tr><th>Label</th><th>Expiry</th><th>Assigned Shops</th><th>Action</th></tr></thead><tbody>
+            @forelse ($oauthInvitations as $invite)<tr><td><strong>{{ $invite->label }}</strong></td><td>{{ $invite->expires_at?->format('Y-m-d H:i') ?? 'No expiry' }}<br><span class="muted">{{ $invite->revoked_at ? 'Revoked' : 'Active' }}</span></td><td><span class="muted">{{ $invite->shops->pluck('name')->join(', ') ?: 'No Shop assigned' }}</span></td><td>@if (! $invite->revoked_at)<form method="POST" action="{{ route('client-access.admin.invites.revoke', $invite) }}">@csrf<button class="danger">Revoke OAuth</button></form>@endif</td></tr>@empty<tr><td colspan="4" class="muted">No OAuth invitations yet.</td></tr>@endforelse
         </tbody></table></section>
     </main></body>
 </html>
