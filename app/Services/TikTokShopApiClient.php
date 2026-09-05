@@ -55,6 +55,12 @@ class TikTokShopApiClient
             'calculated_gmv' => 0.0,
             'currencies' => [],
         ];
+        $dashboardSummary = [
+            'completed_orders' => 0, 'canceled_orders' => 0, 'non_canceled_orders' => 0,
+            'units' => 0, 'canceled_units' => 0, 'canceled_value' => 0.0,
+            'platform_subsidy' => 0.0, 'top_products' => [], 'top_cancel_skus' => [],
+            'payment_methods' => [], 'locations' => [], 'cancel_reasons' => [],
+        ];
 
         while ($pagesFetched < self::MAX_PAGES) {
             $query = ['page_size' => 100];
@@ -91,6 +97,7 @@ class TikTokShopApiClient
                     ? strtoupper($order['status'])
                     : 'UNKNOWN';
                 $statusCounts[$status] = ($statusCounts[$status] ?? 0) + 1;
+                $this->addDashboardOrder($order, $status, $dashboardSummary);
 
                 if (count($visibleOrders) < $visibleLimit) {
                     $visibleOrders[] = $order;
@@ -124,7 +131,7 @@ class TikTokShopApiClient
             'total_count' => $reportedTotal ?? $recordsScanned,
             'status_summary' => [
                 'counts' => $statusCounts,
-                'delivered_or_completed' => $statusCounts['DELIVERED'] ?? 0,
+                'delivered_or_completed' => ($statusCounts['DELIVERED'] ?? 0) + ($statusCounts['COMPLETED'] ?? 0),
                 'records_scanned' => $recordsScanned,
                 'pages_fetched' => $pagesFetched,
                 'complete' => $complete,
@@ -147,6 +154,7 @@ class TikTokShopApiClient
                     && $reportedTotalMatches
                     && $orderValueSummary['line_items_missing_pricing'] === 0,
             ],
+            'dashboard_summary' => $this->dashboardSummary($dashboardSummary, $orderValueSummary),
         ];
 
         if ($continuationToken !== '') {
@@ -204,6 +212,110 @@ class TikTokShopApiClient
                 $summary['currencies'][$lineItem['currency']] = true;
             }
         }
+    }
+
+    /**
+     * Aggregate only commercial and coarse-geography fields. Raw customer and
+     * delivery data is never retained in this summary.
+     *
+     * @param array<string, mixed> $order
+     * @param array<string, mixed> $summary
+     */
+    private function addDashboardOrder(array $order, string $status, array &$summary): void
+    {
+        $isCanceled = in_array($status, ['CANCELLED', 'CANCELED'], true);
+        $isCompleted = in_array($status, ['DELIVERED', 'COMPLETED'], true);
+        $summary[$isCanceled ? 'canceled_orders' : 'non_canceled_orders']++;
+        if ($isCompleted) {
+            $summary['completed_orders']++;
+        }
+
+        $paymentMethod = $this->firstPresentString($order, ['payment_method_name', 'payment_method', 'payment_type']);
+        if ($paymentMethod !== null) {
+            $summary['payment_methods'][$paymentMethod] = ($summary['payment_methods'][$paymentMethod] ?? 0) + 1;
+        }
+
+        $reason = $this->firstPresentString($order, ['cancel_reason', 'cancellation_reason']);
+        if ($isCanceled && $reason !== null) {
+            $summary['cancel_reasons'][$reason] = ($summary['cancel_reasons'][$reason] ?? 0) + 1;
+        }
+
+        $address = $this->firstPresentArray($order, ['shipping_address', 'recipient_address', 'address']);
+        $location = $address === null ? null : $this->firstPresentString($address, ['city', 'district', 'state', 'province', 'region', 'country']);
+        if ($location !== null) {
+            $summary['locations'][$location] = ($summary['locations'][$location] ?? 0) + 1;
+        }
+
+        foreach (is_array($order['line_items'] ?? null) ? $order['line_items'] : [] as $lineItem) {
+            if (! is_array($lineItem)) {
+                continue;
+            }
+            $quantity = $this->firstPresentNumber($lineItem, ['quantity', 'sku_quantity', 'product_quantity']) ?? 1;
+            $salePrice = $this->firstPresentNumber($lineItem, ['sale_price']) ?? 0.0;
+            $platformDiscount = $this->firstPresentNumber($lineItem, ['platform_discount']) ?? 0.0;
+            $value = $salePrice + $platformDiscount;
+            $summary['platform_subsidy'] += $platformDiscount;
+            $summary[$isCanceled ? 'canceled_units' : 'units'] += $quantity;
+            if ($isCanceled) {
+                $summary['canceled_value'] += $value;
+            }
+
+            $sku = $this->firstPresentString($lineItem, ['seller_sku', 'sku_id', 'sku_name', 'product_id']) ?? 'Unspecified SKU';
+            $name = $this->firstPresentString($lineItem, ['product_name', 'product_title', 'sku_name']) ?? $sku;
+            $bucket = $isCanceled ? 'top_cancel_skus' : 'top_products';
+            $current = $summary[$bucket][$sku] ?? ['sku' => $sku, 'name' => $name, 'value' => 0.0, 'units' => 0];
+            $current['value'] += $value;
+            $current['units'] += $quantity;
+            $summary[$bucket][$sku] = $current;
+        }
+    }
+
+    /** @param array<string, mixed> $summary @param array<string, mixed> $values @return array<string, mixed> */
+    private function dashboardSummary(array $summary, array $values): array
+    {
+        $gmv = (float) $values['calculated_gmv'];
+        $nonCanceled = (int) $summary['non_canceled_orders'];
+        $sort = static function (array $items): array {
+            usort($items, static fn (array $left, array $right): int => $right['value'] <=> $left['value']);
+            return array_slice($items, 0, 20);
+        };
+        arsort($summary['payment_methods']); arsort($summary['locations']); arsort($summary['cancel_reasons']);
+
+        return [
+            'nmv' => round($gmv - (float) $summary['canceled_value'], 2),
+            'canceled_value' => round((float) $summary['canceled_value'], 2),
+            'cancel_rate_by_value' => $gmv > 0 ? round(((float) $summary['canceled_value'] / $gmv) * 100, 2) : 0.0,
+            'aov' => $nonCanceled > 0 ? round(($gmv - (float) $summary['canceled_value']) / $nonCanceled, 2) : 0.0,
+            'completed_orders' => $summary['completed_orders'], 'canceled_orders' => $summary['canceled_orders'],
+            'non_canceled_orders' => $nonCanceled, 'units' => $summary['units'],
+            'platform_subsidy' => round((float) $summary['platform_subsidy'], 2),
+            'top_products' => $sort(array_values($summary['top_products'])),
+            'top_cancel_skus' => $sort(array_values($summary['top_cancel_skus'])),
+            'payment_methods' => array_map(static fn (string $name, int $orders): array => ['name' => $name, 'orders' => $orders], array_keys($summary['payment_methods']), $summary['payment_methods']),
+            'locations' => array_map(static fn (string $name, int $orders): array => ['name' => $name, 'orders' => $orders], array_keys($summary['locations']), $summary['locations']),
+            'cancel_reasons' => array_map(static fn (string $name, int $orders): array => ['name' => $name, 'orders' => $orders], array_keys($summary['cancel_reasons']), $summary['cancel_reasons']),
+        ];
+    }
+
+    /** @param array<string, mixed> $data @param list<string> $keys */
+    private function firstPresentString(array $data, array $keys): ?string
+    {
+        foreach ($keys as $key) { if (is_string($data[$key] ?? null) && $data[$key] !== '') { return $data[$key]; } }
+        return null;
+    }
+
+    /** @param array<string, mixed> $data @param list<string> $keys */
+    private function firstPresentNumber(array $data, array $keys): ?float
+    {
+        foreach ($keys as $key) { if (is_numeric($data[$key] ?? null)) { return (float) $data[$key]; } }
+        return null;
+    }
+
+    /** @param array<string, mixed> $data @param list<string> $keys */
+    private function firstPresentArray(array $data, array $keys): ?array
+    {
+        foreach ($keys as $key) { if (is_array($data[$key] ?? null)) { return $data[$key]; } }
+        return null;
     }
 
     /** @return array<string, mixed> */

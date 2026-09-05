@@ -32,7 +32,7 @@ class GenerateClientDashboardReport implements ShouldQueue
             $response = $tools->callForShop('tiktok_shop_orders', [
                 'start_date' => $report->start_date->toDateString(),
                 'end_date' => $report->end_date->toDateString(),
-                'limit' => 1,
+                'limit' => 100,
             ], $report->shop);
 
             $report->update([
@@ -43,6 +43,8 @@ class GenerateClientDashboardReport implements ShouldQueue
                     'attribution' => $response['attribution'] ?? null,
                     'order_value_summary' => data_get($response, 'data.order_value_summary', []),
                     'status_summary' => data_get($response, 'data.status_summary', []),
+                    'dashboard_summary' => data_get($response, 'data.dashboard_summary', []),
+                    'order_details' => data_get($response, 'data.orders', []),
                     'reconciliation' => $response['reconciliation'] ?? [],
                 ],
                 'completed_at' => now(),

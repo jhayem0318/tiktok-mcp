@@ -408,10 +408,18 @@ class ServiceEndpointsTest extends TestCase
                         [
                             'id' => 'private-order-1',
                             'status' => 'DELIVERED',
+                            'payment_method_name' => 'Cash on Delivery',
+                            'shipping_address' => [
+                                'city' => 'Manila',
+                                'full_address' => 'Private Street 1',
+                            ],
                             'line_items' => [[
                                 'sale_price' => '100.25',
                                 'platform_discount' => '10.00',
                                 'currency' => 'PHP',
+                                'seller_sku' => 'A100',
+                                'product_name' => 'PowerCore',
+                                'quantity' => 2,
                             ]],
                         ],
                         [
@@ -445,10 +453,14 @@ class ServiceEndpointsTest extends TestCase
                         [
                             'id' => 'private-order-4',
                             'status' => 'CANCELLED',
+                            'cancel_reason' => 'Buyer canceled',
                             'line_items' => [[
                                 'sale_price' => '30',
                                 'platform_discount' => '0',
                                 'currency' => 'PHP',
+                                'seller_sku' => 'A100',
+                                'product_name' => 'PowerCore',
+                                'quantity' => 1,
                             ]],
                         ],
                     ],
@@ -492,6 +504,16 @@ class ServiceEndpointsTest extends TestCase
             ->assertJsonPath('result.structuredContent.data.order_value_summary.sku_platform_discount', 15.5)
             ->assertJsonPath('result.structuredContent.data.order_value_summary.calculated_gmv', 220.5)
             ->assertJsonPath('result.structuredContent.data.order_value_summary.complete', false)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.nmv', 190.5)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.canceled_value', 30)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.completed_orders', 2)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.non_canceled_orders', 3)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.units', 4)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.platform_subsidy', 15.5)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.top_products.0.sku', 'A100')
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.payment_methods.0.name', 'Cash on Delivery')
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.locations.0.name', 'Manila')
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.cancel_reasons.0.name', 'Buyer canceled')
             ->assertJsonMissing(['id' => 'private-order-1']);
 
         Http::assertSentCount(2);
