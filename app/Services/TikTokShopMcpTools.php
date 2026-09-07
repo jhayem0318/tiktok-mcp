@@ -91,6 +91,11 @@ class TikTokShopMcpTools
                         'type' => 'number',
                         'description' => 'Optional Seller Center export value for reconciliation against the dataset primary financial metric.',
                     ],
+                    'brands' => [
+                        'type' => 'array',
+                        'items' => ['type' => 'string'],
+                        'description' => 'Orders dataset only: limit to line items classified under one or more of these brand names. Omit for all brands.',
+                    ],
                 ],
                 'additionalProperties' => false,
             ],
@@ -171,10 +176,14 @@ class TikTokShopMcpTools
         $pageToken = is_string($arguments['page_token'] ?? null)
             ? $arguments['page_token']
             : null;
+        $brands = is_array($arguments['brands'] ?? null)
+            ? array_values(array_filter($arguments['brands'], 'is_string'))
+            : [];
+        $brands = $brands === [] ? null : $brands;
 
         $data = match ($dataset) {
             'analytics' => $this->client->analytics($shop, $start->toDateString(), $end->toDateString(), $limit, $pageToken),
-            'orders' => $this->client->orders($shop, $start->getTimestamp(), $end->getTimestamp(), $limit, $pageToken, $timezone),
+            'orders' => $this->client->orders($shop, $start->getTimestamp(), $end->getTimestamp(), $limit, $pageToken, $timezone, $brands),
             'products' => $this->client->products($shop, $limit, $pageToken),
             'finance' => $this->client->finance($shop, $start->getTimestamp(), $end->getTimestamp(), $limit, $pageToken),
             'returns' => $this->client->returns($shop, $start->getTimestamp(), $end->getTimestamp(), $limit, $pageToken),

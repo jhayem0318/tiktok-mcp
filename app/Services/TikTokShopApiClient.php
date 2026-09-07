@@ -35,8 +35,11 @@ class TikTokShopApiClient
         return is_array($shops) ? array_values(array_filter($shops, 'is_array')) : [];
     }
 
-    /** @return array<string, mixed> */
-    public function orders(TikTokShop $shop, int $start, int $end, int $pageSize = 20, ?string $pageToken = null, string $timezone = 'UTC'): array
+    /**
+     * @param  ?list<string>  $brandFilter
+     * @return array<string, mixed>
+     */
+    public function orders(TikTokShop $shop, int $start, int $end, int $pageSize = 20, ?string $pageToken = null, string $timezone = 'UTC', ?array $brandFilter = null): array
     {
         if ($pageToken !== null && $pageToken !== '') {
             return $this->ordersPage($shop, $start, $end, $pageSize, $pageToken);
@@ -101,6 +104,13 @@ class TikTokShopApiClient
                     continue;
                 }
 
+                if ($brandFilter !== null) {
+                    $order = $this->filterOrderByBrand($order, $brands, $brandFilter);
+                    if ($order === null) {
+                        continue;
+                    }
+                }
+
                 $recordsScanned++;
                 $orderValueSummary['orders_scanned']++;
                 $this->addOrderLineItemValues($order, $orderValueSummary);
@@ -135,7 +145,11 @@ class TikTokShopApiClient
         }
 
         ksort($statusCounts);
-        $reportedTotalMatches = $reportedTotal === null || $reportedTotal === $recordsScanned;
+        // A brand filter legitimately scans fewer orders than the API's unfiltered
+        // total, so completeness there means "pagination finished," not "counts match."
+        $reportedTotalMatches = $brandFilter !== null
+            ? $complete
+            : ($reportedTotal === null || $reportedTotal === $recordsScanned);
 
         $result = [
             'orders' => $visibleOrders,
@@ -327,6 +341,19 @@ class TikTokShopApiClient
         return $segment;
     }
 
+    /**
+     * Configured brand names for a shop, for building a filter UI (excludes the shop-name catch-all).
+     *
+     * @return list<string>
+     */
+    public function configuredBrandNames(TikTokShop $shop): array
+    {
+        return array_values(array_map(
+            static fn (array $brand): string => $brand['name'],
+            array_filter($this->resolveBrands($shop), static fn (array $brand): bool => $brand['match'] !== []),
+        ));
+    }
+
     /** @return list<array{name: string, match: list<string>}> */
     private function resolveBrands(TikTokShop $shop): array
     {
@@ -358,6 +385,44 @@ class TikTokShopApiClient
         }
 
         return null;
+    }
+
+    /**
+     * Trims an order's line items to only those matching one of the selected
+     * brands, or returns null when nothing survives (the order is skipped
+     * entirely — order-level fields like status/payment method/location are
+     * only ever counted for orders with at least one matching line item).
+     *
+     * @param  array<string, mixed>  $order
+     * @param  list<array{name: string, match: list<string>}>  $brands
+     * @param  list<string>  $brandFilter
+     * @return array<string, mixed>|null
+     */
+    private function filterOrderByBrand(array $order, array $brands, array $brandFilter): ?array
+    {
+        $lineItems = is_array($order['line_items'] ?? null) ? $order['line_items'] : [];
+        $matching = [];
+
+        foreach ($lineItems as $lineItem) {
+            if (! is_array($lineItem)) {
+                continue;
+            }
+
+            $name = $this->firstPresentString($lineItem, ['product_name', 'product_title', 'sku_name']) ?? '';
+            $brandName = $brands === [] ? null : ($this->matchBrand($name, $brands) ?? $brands[array_key_last($brands)]['name']);
+
+            if ($brandName !== null && in_array($brandName, $brandFilter, true)) {
+                $matching[] = $lineItem;
+            }
+        }
+
+        if ($matching === []) {
+            return null;
+        }
+
+        $order['line_items'] = $matching;
+
+        return $order;
     }
 
     private function campaignPeriodLabel(mixed $createTime, string $timezone): ?string

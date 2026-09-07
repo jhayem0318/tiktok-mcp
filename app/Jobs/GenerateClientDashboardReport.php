@@ -29,10 +29,13 @@ class GenerateClientDashboardReport implements ShouldQueue
         $report->update(['status' => 'running', 'error_message' => null]);
 
         try {
+            $brands = $report->brands === null ? [] : explode(',', $report->brands);
+
             $response = $tools->callForShop('tiktok_shop_orders', [
                 'start_date' => $report->start_date->toDateString(),
                 'end_date' => $report->end_date->toDateString(),
                 'limit' => 100,
+                ...($brands === [] ? [] : ['brands' => $brands]),
             ], $report->shop);
 
             $finance = null;

@@ -26,7 +26,9 @@ return [
 
     'by_name' => [
         'Anker Charging' => [
+            ['name' => 'Soundcore', 'match' => ['soundcore']],
             ['name' => 'Eufy', 'match' => ['eufy']],
+            ['name' => 'Solix', 'match' => ['solix']],
             ['name' => 'Anker', 'match' => ['anker']],
         ],
     ],

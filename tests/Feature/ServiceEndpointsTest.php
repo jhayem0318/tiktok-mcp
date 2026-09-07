@@ -624,6 +624,105 @@ class ServiceEndpointsTest extends TestCase
             ->assertJsonPath('result.structuredContent.data.dashboard_summary.campaign_periods.1.gmv', 200);
     }
 
+    public function test_tiktok_shop_orders_brand_filter_scopes_every_aggregate(): void
+    {
+        $this->configureTikTokShop();
+        config()->set([
+            'services.tiktok.api_url' => 'https://open-api.tiktokglobalshop.com',
+            'services.tiktok.mcp_bearer_token' => 'mcp-secret',
+            'tiktok_brands.by_name.Anker Charging' => [
+                ['name' => 'Soundcore', 'match' => ['soundcore']],
+                ['name' => 'Eufy', 'match' => ['eufy']],
+                ['name' => 'Anker', 'match' => ['anker']],
+            ],
+        ]);
+
+        $authorization = TikTokShopAuthorization::query()->create([
+            'app_key' => 'test-app-key', 'open_id' => 'seller-open-id',
+            'seller_name' => 'Anker Charging', 'seller_base_region' => 'PH', 'user_type' => 0,
+            'access_token' => 'access-token-value', 'refresh_token' => 'refresh-token-value',
+            'access_token_expires_at' => now()->addWeek(), 'refresh_token_expires_at' => now()->addYear(),
+        ]);
+        TikTokShop::query()->create([
+            'tik_tok_shop_authorization_id' => $authorization->id, 'shop_id' => 'shop-id',
+            'shop_cipher' => 'secret-shop-cipher', 'name' => 'Anker Charging', 'region' => 'PH',
+        ]);
+
+        $dayThree = CarbonImmutable::parse('2026-09-03 10:00:00', 'Asia/Manila')->getTimestamp();
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://open-api.tiktokglobalshop.com/order/202309/orders/search*' => Http::response([
+                'code' => 0, 'message' => 'Success', 'data' => [
+                    'orders' => [
+                        [
+                            // Anker-only order: fully included.
+                            'id' => 'private-order-1', 'status' => 'DELIVERED', 'create_time' => $dayThree,
+                            'line_items' => [[
+                                'sale_price' => '100', 'platform_discount' => '10', 'currency' => 'PHP',
+                                'seller_sku' => 'A1', 'product_name' => 'Anker Zolo Charger', 'quantity' => 1,
+                            ]],
+                        ],
+                        [
+                            // Soundcore-only order: excluded entirely.
+                            'id' => 'private-order-2', 'status' => 'DELIVERED', 'create_time' => $dayThree,
+                            'line_items' => [[
+                                'sale_price' => '300', 'platform_discount' => '0', 'currency' => 'PHP',
+                                'seller_sku' => 'S1', 'product_name' => 'Soundcore R50i', 'quantity' => 1,
+                            ]],
+                        ],
+                        [
+                            // Mixed order: counted once, but only the Anker line item contributes value.
+                            'id' => 'private-order-3', 'status' => 'DELIVERED', 'create_time' => $dayThree,
+                            'line_items' => [
+                                [
+                                    'sale_price' => '50', 'platform_discount' => '5', 'currency' => 'PHP',
+                                    'seller_sku' => 'A2', 'product_name' => 'Anker Cable', 'quantity' => 1,
+                                ],
+                                [
+                                    'sale_price' => '200', 'platform_discount' => '0', 'currency' => 'PHP',
+                                    'seller_sku' => 'S2', 'product_name' => 'Soundcore Earbuds', 'quantity' => 2,
+                                ],
+                            ],
+                        ],
+                        [
+                            // Eufy-only, canceled order: excluded entirely.
+                            'id' => 'private-order-4', 'status' => 'CANCELLED', 'create_time' => $dayThree,
+                            'line_items' => [[
+                                'sale_price' => '80', 'platform_discount' => '0', 'currency' => 'PHP',
+                                'seller_sku' => 'E1', 'product_name' => 'Eufy Cam', 'quantity' => 1,
+                            ]],
+                        ],
+                    ],
+                    'total_count' => 4, 'next_page_token' => '',
+                ],
+            ]),
+        ]);
+
+        $response = $this->withToken('mcp-secret')->postJson('/api/tiktok/mcp', [
+            'jsonrpc' => '2.0', 'id' => 8, 'method' => 'tools/call',
+            'params' => [
+                'name' => 'tiktok_shop_orders',
+                'arguments' => ['start_date' => '2026-09-01', 'end_date' => '2026-09-04', 'limit' => 10, 'brands' => ['Anker']],
+            ],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('result.structuredContent.data.status_summary.records_scanned', 2)
+            ->assertJsonPath('result.structuredContent.data.status_summary.reported_total_matches', true)
+            ->assertJsonPath('result.structuredContent.data.order_value_summary.calculated_gmv', 165)
+            ->assertJsonPath('result.structuredContent.data.order_value_summary.complete', true)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.nmv', 165)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.canceled_value', 0)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.non_canceled_orders', 2)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.units', 2)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.top_products.0.name', 'Anker Zolo Charger')
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.top_products.1.name', 'Anker Cable')
+            ->assertJsonMissing(['seller_sku' => 'S1'])
+            ->assertJsonMissing(['seller_sku' => 'S2'])
+            ->assertJsonMissing(['seller_sku' => 'E1']);
+    }
+
     public function test_tiktok_shop_analytics_aggregate_gmv_across_every_page(): void
     {
         $this->configureTikTokShop();

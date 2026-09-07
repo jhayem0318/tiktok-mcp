@@ -7,6 +7,7 @@ use App\Models\ClientDashboardReport;
 use App\Models\ShopMonthlyMetric;
 use App\Models\TikTokShop;
 use App\Models\User;
+use App\Services\TikTokShopApiClient;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,6 +16,8 @@ use Illuminate\Support\Facades\Hash;
 
 class ClientDashboardController extends Controller
 {
+    public function __construct(private readonly TikTokShopApiClient $apiClient) {}
+
     public function login(Request $request): View|RedirectResponse
     {
         return $this->client($request) === null ? view('client-dashboard-login') : redirect()->route('client.dashboard');
@@ -69,18 +72,24 @@ class ClientDashboardController extends Controller
             'shop_id' => ['nullable', 'string'],
             'start_date' => ['nullable', 'date_format:Y-m-d'],
             'end_date' => ['nullable', 'date_format:Y-m-d', 'after:start_date'],
+            'brands' => ['nullable', 'array'],
+            'brands.*' => ['string'],
         ]);
         $shop = $shops->firstWhere('shop_id', $validated['shop_id'] ?? null) ?? $shops->first();
         $startDate = $validated['start_date'] ?? now('Asia/Manila')->subDays(7)->toDateString();
         $endDate = $validated['end_date'] ?? now('Asia/Manila')->toDateString();
+        $selectedBrands = $this->normalizeBrands($validated['brands'] ?? []);
+        $brandsKey = $selectedBrands === [] ? null : implode(',', $selectedBrands);
         $report = $shop === null ? null : ClientDashboardReport::query()
             ->where('user_id', $client->id)->where('tik_tok_shop_id', $shop->id)
-            ->whereDate('start_date', $startDate)->whereDate('end_date', $endDate)->latest()->first();
+            ->whereDate('start_date', $startDate)->whereDate('end_date', $endDate)
+            ->where('brands', $brandsKey)->latest()->first();
         $monthlyHistory = $shop === null ? collect() : ShopMonthlyMetric::query()
             ->where('tik_tok_shop_id', $shop->id)
             ->orderBy('period_start')
             ->get();
-        $snapshot = $monthlyHistory->first(fn ($month) => $month->orders_complete
+        // Saved monthly snapshots are always whole-shop; only substitute one when no brand filter is active.
+        $snapshot = $brandsKey !== null ? null : $monthlyHistory->first(fn ($month) => $month->orders_complete
             && $month->period_start->toDateString() === $startDate
             && $month->period_end->toDateString() === $endDate);
         if ($snapshot) {
@@ -99,6 +108,8 @@ class ClientDashboardController extends Controller
         return view('client-dashboard', [
             'client' => $client, 'shops' => $shops, 'selectedShop' => $shop, 'report' => $report,
             'startDate' => $startDate, 'endDate' => $endDate, 'monthlyHistory' => $monthlyHistory,
+            'selectedBrands' => $selectedBrands,
+            'availableBrands' => $shop === null ? [] : $this->apiClient->configuredBrandNames($shop),
         ]);
     }
 
@@ -109,20 +120,28 @@ class ClientDashboardController extends Controller
             'shop_id' => ['required', 'string'],
             'start_date' => ['required', 'date_format:Y-m-d'],
             'end_date' => ['required', 'date_format:Y-m-d', 'after:start_date'],
+            'brands' => ['nullable', 'array'],
+            'brands.*' => ['string'],
         ]);
         $shop = $this->assignedShops($client)->firstWhere('shop_id', $validated['shop_id']);
         abort_unless($shop !== null, 403, 'That Shop is not assigned to this client.');
 
-        if (ShopMonthlyMetric::query()->where('tik_tok_shop_id', $shop->id)
+        $selectedBrands = $this->normalizeBrands($validated['brands'] ?? []);
+        $brandsKey = $selectedBrands === [] ? null : implode(',', $selectedBrands);
+        $redirectParams = ['shop_id' => $validated['shop_id'], 'start_date' => $validated['start_date'], 'end_date' => $validated['end_date'], 'brands' => $selectedBrands];
+
+        // Saved monthly snapshots are whole-shop; the shortcut only applies unfiltered.
+        if ($brandsKey === null && ShopMonthlyMetric::query()->where('tik_tok_shop_id', $shop->id)
             ->whereDate('period_start', $validated['start_date'])
             ->whereDate('period_end', $validated['end_date'])
             ->where('orders_complete', true)->exists()) {
-            return redirect()->route('client.dashboard', $validated);
+            return redirect()->route('client.dashboard', $redirectParams);
         }
 
         $attributes = [
             'user_id' => $client->id, 'tik_tok_shop_id' => $shop->id,
             'start_date' => $validated['start_date'], 'end_date' => $validated['end_date'],
+            'brands' => $brandsKey,
         ];
         $report = ClientDashboardReport::query()->where($attributes)->first();
 
@@ -133,7 +152,7 @@ class ClientDashboardController extends Controller
             GenerateClientDashboardReport::dispatch($report->id);
         }
 
-        return redirect()->route('client.dashboard', $validated);
+        return redirect()->route('client.dashboard', $redirectParams);
     }
 
     public function logout(Request $request): RedirectResponse
@@ -163,5 +182,19 @@ class ClientDashboardController extends Controller
     private function assignedShops(User $client): Collection
     {
         return $client->shops()->orderBy('name')->get();
+    }
+
+    /**
+     * @param  list<mixed>  $brands
+     * @return list<string>
+     */
+    private function normalizeBrands(array $brands): array
+    {
+        return collect($brands)
+            ->filter(fn (mixed $brand): bool => is_string($brand) && $brand !== '')
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
     }
 }

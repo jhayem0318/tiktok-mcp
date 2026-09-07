@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['user_id', 'tik_tok_shop_id', 'start_date', 'end_date', 'status', 'result', 'error_message', 'completed_at'])]
+#[Fillable(['user_id', 'tik_tok_shop_id', 'start_date', 'end_date', 'brands', 'status', 'result', 'error_message', 'completed_at'])]
 class ClientDashboardReport extends Model
 {
     protected function casts(): array
