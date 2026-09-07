@@ -11,11 +11,11 @@ class SyncShopMonthlyHistory
 {
     public function __construct(private readonly TikTokShopMcpTools $tools) {}
 
-    public function handle(TikTokShop $shop, CarbonImmutable $periodStart, CarbonImmutable $periodEnd): ShopMonthlyMetric
+    public function handle(TikTokShop $shop, CarbonImmutable $periodStart, CarbonImmutable $periodEnd, bool $force = false): ShopMonthlyMetric
     {
         $saved = ShopMonthlyMetric::query()->where('tik_tok_shop_id', $shop->id)
             ->whereDate('period_start', $periodStart->toDateString())->first();
-        if ($saved && $saved->orders_complete
+        if (! $force && $saved && $saved->orders_complete
             && $saved->period_end->toDateString() === $periodEnd->toDateString()
             && $periodEnd->equalTo($periodStart->startOfMonth()->addMonth())
             && $periodEnd->lessThanOrEqualTo(now($periodStart->timezone))) {
@@ -70,6 +70,11 @@ class SyncShopMonthlyHistory
             'channel_breakdown' => data_get($analytics, 'data.performance_summary.channel_breakdown', []),
             'reconciliation' => $analytics['reconciliation'] ?? [],
         ];
+
+        if ($saved && $force && (! (bool) data_get($orders, 'data.order_value_summary.complete', false)
+            || ($saved->finance_available && $finance === null))) {
+            throw new \RuntimeException('Replacement data is incomplete; the saved snapshot was preserved.');
+        }
 
         return ShopMonthlyMetric::query()->updateOrCreate([
             'tik_tok_shop_id' => $shop->id,

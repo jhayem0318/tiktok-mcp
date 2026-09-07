@@ -15,7 +15,8 @@ class SyncTikTokShopMonthlyHistory extends Command
     protected $signature = 'tiktok:shop:sync-months
         {--from= : First month to store, in YYYY-MM format; defaults to the current month}
         {--to= : Last month to store, in YYYY-MM format; defaults to the current month}
-        {--shop-id= : Authorized TikTok Shop ID; defaults to the latest production Shop}';
+        {--shop-id= : Authorized TikTok Shop ID; defaults to the latest production Shop}
+        {--force : Refetch and recalculate saved snapshots, preserving them if the replacement is incomplete}';
 
     protected $description = 'Store aggregate monthly TikTok Shop history through the read-only API';
 
@@ -53,7 +54,7 @@ class SyncTikTokShopMonthlyHistory extends Command
 
             if ($end->isAfter($current)) {
                 try {
-                    $metric = $history->handle($shop, $current, $end);
+                    $metric = $history->handle($shop, $current, $end, (bool) $this->option('force'));
                     $stored++;
                     $this->line(sprintf('%s stored · orders %s · finance %s', $current->format('Y-m'), $metric->orders_complete ? 'complete' : 'incomplete', $metric->finance_available ? 'available' : 'unavailable'));
                 } catch (TikTokAuthorizationException|TikTokShopApiException $exception) {
