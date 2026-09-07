@@ -299,8 +299,12 @@ class TikTokShopMcpTools
             throw new InvalidArgumentException('end_date must be after start_date.');
         }
 
-        if ($start->diffInDays($end) > 30) {
-            throw new InvalidArgumentException('The maximum date range is 30 days.');
+        // The monthly archive uses [first day, first day of next month).
+        // Permit a complete calendar month, including months with 31 days.
+        $isCalendarMonth = $start->equalTo($start->startOfMonth())
+            && $end->equalTo($start->addMonth());
+        if ($start->diffInDays($end) > 30 && ! $isCalendarMonth) {
+            throw new InvalidArgumentException('The maximum date range is 30 days or one complete calendar month.');
         }
 
         return [$start, $end];
