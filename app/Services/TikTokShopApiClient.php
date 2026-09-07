@@ -254,7 +254,9 @@ class TikTokShopApiClient
             $salePrice = $this->firstPresentNumber($lineItem, ['sale_price']) ?? 0.0;
             $platformDiscount = $this->firstPresentNumber($lineItem, ['platform_discount']) ?? 0.0;
             $value = $salePrice + $platformDiscount;
-            $summary['platform_subsidy'] += $platformDiscount;
+            if (! $isCanceled) {
+                $summary['platform_subsidy'] += $platformDiscount;
+            }
             $summary[$isCanceled ? 'canceled_units' : 'units'] += $quantity;
             if ($isCanceled) {
                 $summary['canceled_value'] += $value;

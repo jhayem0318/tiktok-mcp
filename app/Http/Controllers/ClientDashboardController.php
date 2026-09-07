@@ -80,6 +80,19 @@ class ClientDashboardController extends Controller
             ->where('tik_tok_shop_id', $shop->id)
             ->orderBy('period_start')
             ->get();
+        $snapshot = $monthlyHistory->first(fn ($month) => $month->orders_complete
+            && $month->period_start->toDateString() === $startDate
+            && $month->period_end->toDateString() === $endDate);
+        if ($snapshot) {
+            $report = new ClientDashboardReport([
+                'status' => 'completed',
+                'result' => array_merge($snapshot->order_summary, [
+                    'source' => 'Saved TikTok Shop API snapshot · '.$snapshot->synced_at,
+                    'finance_summary' => $snapshot->finance_summary['summary'] ?? [],
+                    'finance_unavailable' => $snapshot->finance_available ? null : 'Finance was unavailable when this snapshot was saved.',
+                ]),
+            ]);
+        }
 
         return view('client-dashboard', [
             'client' => $client, 'shops' => $shops, 'selectedShop' => $shop, 'report' => $report,
@@ -97,6 +110,13 @@ class ClientDashboardController extends Controller
         ]);
         $shop = $this->assignedShops($client)->firstWhere('shop_id', $validated['shop_id']);
         abort_unless($shop !== null, 403, 'That Shop is not assigned to this client.');
+
+        if (ShopMonthlyMetric::query()->where('tik_tok_shop_id', $shop->id)
+            ->whereDate('period_start', $validated['start_date'])
+            ->whereDate('period_end', $validated['end_date'])
+            ->where('orders_complete', true)->exists()) {
+            return redirect()->route('client.dashboard', $validated);
+        }
 
         $attributes = [
             'user_id' => $client->id, 'tik_tok_shop_id' => $shop->id,

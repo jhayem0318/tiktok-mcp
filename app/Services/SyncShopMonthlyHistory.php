@@ -13,6 +13,15 @@ class SyncShopMonthlyHistory
 
     public function handle(TikTokShop $shop, CarbonImmutable $periodStart, CarbonImmutable $periodEnd): ShopMonthlyMetric
     {
+        $saved = ShopMonthlyMetric::query()->where('tik_tok_shop_id', $shop->id)
+            ->whereDate('period_start', $periodStart->toDateString())->first();
+        if ($saved && $saved->orders_complete
+            && $saved->period_end->toDateString() === $periodEnd->toDateString()
+            && $periodEnd->equalTo($periodStart->startOfMonth()->addMonth())
+            && $periodEnd->lessThanOrEqualTo(now($periodStart->timezone))) {
+            return $saved;
+        }
+
         $orders = $this->tools->callForShop('tiktok_shop_orders', [
             'start_date' => $periodStart->toDateString(),
             'end_date' => $periodEnd->toDateString(),

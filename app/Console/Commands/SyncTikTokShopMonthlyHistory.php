@@ -30,7 +30,7 @@ class SyncTikTokShopMonthlyHistory extends Command
         }
 
         $timezone = $shop->region === 'PH' ? 'Asia/Manila' : (string) config('app.timezone', 'UTC');
-        $defaultMonth = now($timezone)->format('Y-m');
+        $defaultMonth = now($timezone)->startOfMonth()->subMonth()->format('Y-m');
         $from = $this->month((string) ($this->option('from') ?: $defaultMonth), $timezone);
         $to = $this->month((string) ($this->option('to') ?: $defaultMonth), $timezone);
 
