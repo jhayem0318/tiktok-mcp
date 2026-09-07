@@ -39,13 +39,16 @@ class TikTokShopApiClient
      * @param  ?list<string>  $brandFilter
      * @return array<string, mixed>
      */
-    public function orders(TikTokShop $shop, int $start, int $end, int $pageSize = 20, ?string $pageToken = null, string $timezone = 'UTC', ?array $brandFilter = null): array
+    public function orders(TikTokShop $shop, int $start, int $end, int $pageSize = 20, ?string $pageToken = null, string $timezone = 'UTC', ?array $brandFilter = null, bool $includeBrandSummaries = false): array
     {
         if ($pageToken !== null && $pageToken !== '') {
             return $this->ordersPage($shop, $start, $end, $pageSize, $pageToken);
         }
 
         $brands = $this->resolveBrands($shop);
+        $brandNames = $includeBrandSummaries ? $this->brandNamesExcludingCatchAll($brands) : [];
+        $brandOrderValueSummaries = [];
+        $brandDashboardSummaries = [];
 
         $visibleLimit = max(1, min(100, $pageSize));
         $visibleOrders = [];
@@ -58,23 +61,8 @@ class TikTokShopApiClient
         $requestId = null;
         $complete = false;
         $continuationToken = '';
-        $orderValueSummary = [
-            'orders_scanned' => 0,
-            'line_items_scanned' => 0,
-            'line_items_with_complete_pricing' => 0,
-            'line_items_missing_pricing' => 0,
-            'sku_subtotal_after_discount' => 0.0,
-            'sku_platform_discount' => 0.0,
-            'calculated_gmv' => 0.0,
-            'currencies' => [],
-        ];
-        $dashboardSummary = [
-            'completed_orders' => 0, 'canceled_orders' => 0, 'non_canceled_orders' => 0,
-            'units' => 0, 'canceled_units' => 0, 'canceled_value' => 0.0,
-            'platform_subsidy' => 0.0, 'top_products' => [], 'top_cancel_skus' => [],
-            'payment_methods' => [], 'locations' => [], 'cancel_reasons' => [],
-            'brand_mix' => [], 'campaign_periods' => [],
-        ];
+        $orderValueSummary = $this->emptyOrderValueSummary();
+        $dashboardSummary = $this->emptyDashboardSummary();
 
         while ($pagesFetched < self::MAX_PAGES) {
             $query = ['page_size' => 100];
@@ -99,11 +87,16 @@ class TikTokShopApiClient
 
             $orders = is_array($page['orders'] ?? null) ? $page['orders'] : [];
 
-            foreach ($orders as $order) {
-                if (! is_array($order)) {
+            foreach ($orders as $rawOrder) {
+                if (! is_array($rawOrder)) {
                     continue;
                 }
 
+                if ($brandNames !== []) {
+                    $this->accumulateBrandSummaries($rawOrder, $brands, $brandNames, $timezone, $brandOrderValueSummaries, $brandDashboardSummaries);
+                }
+
+                $order = $rawOrder;
                 if ($brandFilter !== null) {
                     $order = $this->filterOrderByBrand($order, $brands, $brandFilter);
                     if ($order === null) {
@@ -150,6 +143,7 @@ class TikTokShopApiClient
         $reportedTotalMatches = $brandFilter !== null
             ? $complete
             : ($reportedTotal === null || $reportedTotal === $recordsScanned);
+        $finalized = $this->finalizeSummary($orderValueSummary, $dashboardSummary, $complete, $reportedTotalMatches);
 
         $result = [
             'orders' => $visibleOrders,
@@ -162,6 +156,105 @@ class TikTokShopApiClient
                 'complete' => $complete,
                 'reported_total_matches' => $reportedTotalMatches,
             ],
+            'order_value_summary' => $finalized['order_value_summary'],
+            'dashboard_summary' => $finalized['dashboard_summary'],
+        ];
+
+        if ($brandNames !== []) {
+            $result['brand_summaries'] = [];
+            foreach ($brandNames as $brandName) {
+                if (! isset($brandDashboardSummaries[$brandName])) {
+                    continue;
+                }
+                // Brand slices are derived from the same pagination pass, so they share its completeness.
+                $result['brand_summaries'][$brandName] = $this->finalizeSummary(
+                    $brandOrderValueSummaries[$brandName],
+                    $brandDashboardSummaries[$brandName],
+                    $complete,
+                    $complete,
+                );
+            }
+        }
+
+        if ($continuationToken !== '') {
+            $result['next_page_token'] = $continuationToken;
+        }
+
+        if ($requestId !== null) {
+            $result['_request_id'] = $requestId;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param  array<string, mixed>  $order
+     * @param  list<array{name: string, match: list<string>}>  $brands
+     * @param  list<string>  $brandNames
+     * @param  array<string, array<string, mixed>>  $orderValueSummaries
+     * @param  array<string, array<string, mixed>>  $dashboardSummaries
+     */
+    private function accumulateBrandSummaries(
+        array $order,
+        array $brands,
+        array $brandNames,
+        string $timezone,
+        array &$orderValueSummaries,
+        array &$dashboardSummaries,
+    ): void {
+        foreach ($brandNames as $brandName) {
+            $filtered = $this->filterOrderByBrand($order, $brands, [$brandName]);
+
+            if ($filtered === null) {
+                continue;
+            }
+
+            $orderValueSummaries[$brandName] ??= $this->emptyOrderValueSummary();
+            $dashboardSummaries[$brandName] ??= $this->emptyDashboardSummary();
+            $orderValueSummaries[$brandName]['orders_scanned']++;
+            $this->addOrderLineItemValues($filtered, $orderValueSummaries[$brandName]);
+            $status = is_string($filtered['status'] ?? null) && $filtered['status'] !== ''
+                ? strtoupper($filtered['status'])
+                : 'UNKNOWN';
+            $this->addDashboardOrder($filtered, $status, $dashboardSummaries[$brandName], $brands, $timezone);
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function emptyOrderValueSummary(): array
+    {
+        return [
+            'orders_scanned' => 0,
+            'line_items_scanned' => 0,
+            'line_items_with_complete_pricing' => 0,
+            'line_items_missing_pricing' => 0,
+            'sku_subtotal_after_discount' => 0.0,
+            'sku_platform_discount' => 0.0,
+            'calculated_gmv' => 0.0,
+            'currencies' => [],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function emptyDashboardSummary(): array
+    {
+        return [
+            'completed_orders' => 0, 'canceled_orders' => 0, 'non_canceled_orders' => 0,
+            'units' => 0, 'canceled_units' => 0, 'canceled_value' => 0.0,
+            'platform_subsidy' => 0.0, 'top_products' => [], 'top_cancel_skus' => [],
+            'payment_methods' => [], 'locations' => [], 'cancel_reasons' => [],
+            'brand_mix' => [], 'campaign_periods' => [],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $orderValueSummary
+     * @param  array<string, mixed>  $dashboardSummary
+     * @return array{order_value_summary: array<string, mixed>, dashboard_summary: array<string, mixed>}
+     */
+    private function finalizeSummary(array $orderValueSummary, array $dashboardSummary, bool $complete, bool $reportedTotalMatches): array
+    {
+        return [
             'order_value_summary' => [
                 'formula' => 'SUM(line_items.sale_price + line_items.platform_discount)',
                 'orders_scanned' => $orderValueSummary['orders_scanned'],
@@ -181,16 +274,6 @@ class TikTokShopApiClient
             ],
             'dashboard_summary' => $this->dashboardSummary($dashboardSummary, $orderValueSummary),
         ];
-
-        if ($continuationToken !== '') {
-            $result['next_page_token'] = $continuationToken;
-        }
-
-        if ($requestId !== null) {
-            $result['_request_id'] = $requestId;
-        }
-
-        return $result;
     }
 
     /** @return array<string, mixed> */
@@ -348,9 +431,18 @@ class TikTokShopApiClient
      */
     public function configuredBrandNames(TikTokShop $shop): array
     {
+        return $this->brandNamesExcludingCatchAll($this->resolveBrands($shop));
+    }
+
+    /**
+     * @param  list<array{name: string, match: list<string>}>  $brands
+     * @return list<string>
+     */
+    private function brandNamesExcludingCatchAll(array $brands): array
+    {
         return array_values(array_map(
             static fn (array $brand): string => $brand['name'],
-            array_filter($this->resolveBrands($shop), static fn (array $brand): bool => $brand['match'] !== []),
+            array_filter($brands, static fn (array $brand): bool => $brand['match'] !== []),
         ));
     }
 

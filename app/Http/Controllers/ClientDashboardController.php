@@ -88,11 +88,12 @@ class ClientDashboardController extends Controller
             ->where('tik_tok_shop_id', $shop->id)
             ->orderBy('period_start')
             ->get();
-        // Saved monthly snapshots are always whole-shop; only substitute one when no brand filter is active.
-        $snapshot = $brandsKey !== null ? null : $monthlyHistory->first(fn ($month) => $month->orders_complete
+        $snapshot = $monthlyHistory->first(fn ($month) => $month->orders_complete
             && $month->period_start->toDateString() === $startDate
             && $month->period_end->toDateString() === $endDate);
-        if ($snapshot) {
+
+        if ($snapshot && $brandsKey === null) {
+            // Whole-shop: the saved snapshot already covers this exactly.
             $report = new ClientDashboardReport([
                 'status' => 'completed',
                 'result' => array_merge($snapshot->order_summary, [
@@ -103,7 +104,24 @@ class ClientDashboardController extends Controller
                     'channel_performance_unavailable' => $snapshot->channel_summary === null ? 'Channel performance was unavailable when this snapshot was saved.' : null,
                 ]),
             ]);
+        } elseif ($snapshot && count($selectedBrands) === 1 && isset($snapshot->brand_summaries[$selectedBrands[0]])) {
+            // Single brand: served from the per-brand slice stored alongside the snapshot, no live re-fetch.
+            $brandData = $snapshot->brand_summaries[$selectedBrands[0]];
+            $report = new ClientDashboardReport([
+                'status' => 'completed',
+                'result' => [
+                    'source' => 'Saved TikTok Shop API snapshot ('.$selectedBrands[0].') · '.$snapshot->synced_at,
+                    'date_range' => $snapshot->order_summary['date_range'] ?? [],
+                    'order_value_summary' => $brandData['order_value_summary'] ?? [],
+                    'dashboard_summary' => $brandData['dashboard_summary'] ?? [],
+                    'finance_summary' => $snapshot->finance_summary['summary'] ?? [],
+                    'finance_unavailable' => $snapshot->finance_available ? null : 'Finance was unavailable when this snapshot was saved.',
+                    'channel_performance' => $snapshot->channel_summary['channel_breakdown'] ?? [],
+                    'channel_performance_unavailable' => $snapshot->channel_summary === null ? 'Channel performance was unavailable when this snapshot was saved.' : null,
+                ],
+            ]);
         }
+        // Multiple brands selected, or no matching snapshot/brand slice yet: fall through to the live report above.
 
         return view('client-dashboard', [
             'client' => $client, 'shops' => $shops, 'selectedShop' => $shop, 'report' => $report,
@@ -130,11 +148,16 @@ class ClientDashboardController extends Controller
         $brandsKey = $selectedBrands === [] ? null : implode(',', $selectedBrands);
         $redirectParams = ['shop_id' => $validated['shop_id'], 'start_date' => $validated['start_date'], 'end_date' => $validated['end_date'], 'brands' => $selectedBrands];
 
-        // Saved monthly snapshots are whole-shop; the shortcut only applies unfiltered.
-        if ($brandsKey === null && ShopMonthlyMetric::query()->where('tik_tok_shop_id', $shop->id)
+        // Skip dispatching a live job when a saved snapshot already covers this request —
+        // either whole-shop, or (since commit adding brand_summaries) exactly one selected brand.
+        $existingSnapshot = ShopMonthlyMetric::query()->where('tik_tok_shop_id', $shop->id)
             ->whereDate('period_start', $validated['start_date'])
             ->whereDate('period_end', $validated['end_date'])
-            ->where('orders_complete', true)->exists()) {
+            ->where('orders_complete', true)->first();
+        $servedFromSnapshot = $existingSnapshot && ($brandsKey === null
+            || (count($selectedBrands) === 1 && isset($existingSnapshot->brand_summaries[$selectedBrands[0]])));
+
+        if ($servedFromSnapshot) {
             return redirect()->route('client.dashboard', $redirectParams);
         }
 

@@ -26,6 +26,7 @@ class SyncShopMonthlyHistory
             'start_date' => $periodStart->toDateString(),
             'end_date' => $periodEnd->toDateString(),
             'limit' => 100,
+            'include_brand_summaries' => true,
         ], $shop);
 
         $finance = null;
@@ -70,6 +71,8 @@ class SyncShopMonthlyHistory
             'channel_breakdown' => data_get($analytics, 'data.performance_summary.channel_breakdown', []),
             'reconciliation' => $analytics['reconciliation'] ?? [],
         ];
+        $brandSummaries = data_get($orders, 'data.brand_summaries');
+        $brandSummaries = is_array($brandSummaries) ? $brandSummaries : null;
 
         if ($saved && $force && (! (bool) data_get($orders, 'data.order_value_summary.complete', false)
             || ($saved->finance_available && $finance === null))) {
@@ -86,6 +89,7 @@ class SyncShopMonthlyHistory
             'order_summary' => $orderSummary,
             'finance_summary' => $financeSummary,
             'channel_summary' => $channelSummary,
+            'brand_summaries' => $brandSummaries,
             'orders_complete' => (bool) data_get($orders, 'data.order_value_summary.complete', false),
             'finance_available' => $finance !== null,
             'synced_at' => now(),

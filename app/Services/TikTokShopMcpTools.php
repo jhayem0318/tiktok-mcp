@@ -96,6 +96,11 @@ class TikTokShopMcpTools
                         'items' => ['type' => 'string'],
                         'description' => 'Orders dataset only: limit to line items classified under one or more of these brand names. Omit for all brands.',
                     ],
+                    'include_brand_summaries' => [
+                        'type' => 'boolean',
+                        'description' => 'Orders dataset only: also return a per-configured-brand order_value_summary/dashboard_summary breakdown alongside the whole-shop one, computed from this same pagination pass (no extra API calls). Intended for monthly history backfills, not routine calls.',
+                        'default' => false,
+                    ],
                 ],
                 'additionalProperties' => false,
             ],
@@ -180,10 +185,11 @@ class TikTokShopMcpTools
             ? array_values(array_filter($arguments['brands'], 'is_string'))
             : [];
         $brands = $brands === [] ? null : $brands;
+        $includeBrandSummaries = (bool) ($arguments['include_brand_summaries'] ?? false);
 
         $data = match ($dataset) {
             'analytics' => $this->client->analytics($shop, $start->toDateString(), $end->toDateString(), $limit, $pageToken),
-            'orders' => $this->client->orders($shop, $start->getTimestamp(), $end->getTimestamp(), $limit, $pageToken, $timezone, $brands),
+            'orders' => $this->client->orders($shop, $start->getTimestamp(), $end->getTimestamp(), $limit, $pageToken, $timezone, $brands, $includeBrandSummaries),
             'products' => $this->client->products($shop, $limit, $pageToken),
             'finance' => $this->client->finance($shop, $start->getTimestamp(), $end->getTimestamp(), $limit, $pageToken),
             'returns' => $this->client->returns($shop, $start->getTimestamp(), $end->getTimestamp(), $limit, $pageToken),
