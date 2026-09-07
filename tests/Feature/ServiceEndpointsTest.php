@@ -55,6 +55,18 @@ class ServiceEndpointsTest extends TestCase
                     ],
                 ],
             ]),
+            'https://open-api.tiktokglobalshop.com/authorization/202309/shops*' => Http::response([
+                'code' => 0,
+                'message' => 'success',
+                'data' => [
+                    'shops' => [[
+                        'id' => 'shop-id',
+                        'name' => 'Anker Philippines',
+                        'region' => 'PH',
+                        'cipher' => 'shop-cipher',
+                    ]],
+                ],
+            ]),
         ]);
 
         $response = $this->getJson('/tiktok/callback?code=one-time-code&app_key=test-app-key');
@@ -70,6 +82,11 @@ class ServiceEndpointsTest extends TestCase
             'app_key' => 'test-app-key',
             'open_id' => 'seller-open-id',
             'seller_name' => 'Anker Philippines',
+        ]);
+        $this->assertDatabaseHas('tik_tok_shops', [
+            'shop_id' => 'shop-id',
+            'name' => 'Anker Philippines',
+            'region' => 'PH',
         ]);
 
         $authorization = TikTokShopAuthorization::query()->sole();
@@ -765,6 +782,7 @@ class ServiceEndpointsTest extends TestCase
             'services.tiktok.app_secret' => 'test-app-secret',
             'services.tiktok.token_url' => 'https://auth.tiktok-shops.com/api/v2/token/get',
             'services.tiktok.refresh_url' => 'https://auth.tiktok-shops.com/api/v2/token/refresh',
+            'services.tiktok.api_url' => 'https://open-api.tiktokglobalshop.com',
         ]);
     }
 }

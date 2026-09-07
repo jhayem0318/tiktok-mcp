@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\StoreAuthorizedTikTokShops;
 use App\Actions\StoreTikTokShopAuthorization;
 use App\Exceptions\TikTokAuthorizationException;
+use App\Exceptions\TikTokShopApiException;
+use App\Services\TikTokShopApiClient;
 use App\Services\TikTokShopOAuthClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,6 +18,8 @@ class TikTokShopCallbackController extends Controller
         Request $request,
         TikTokShopOAuthClient $oauthClient,
         StoreTikTokShopAuthorization $storeAuthorization,
+        TikTokShopApiClient $shopClient,
+        StoreAuthorizedTikTokShops $storeShops,
     ): JsonResponse {
         if ($request->string('error')->isNotEmpty()) {
             return response()->json([
@@ -44,7 +49,8 @@ class TikTokShopCallbackController extends Controller
         try {
             $tokenData = $oauthClient->exchangeAuthorizationCode($validated['code']);
             $authorization = $storeAuthorization->handle($tokenData);
-        } catch (TikTokAuthorizationException $exception) {
+            $storeShops->handle($authorization, $shopClient->authorizedShops($authorization));
+        } catch (TikTokAuthorizationException|TikTokShopApiException $exception) {
             Log::warning('TikTok Shop authorization failed.', [
                 'reason' => $exception->getMessage(),
             ]);
