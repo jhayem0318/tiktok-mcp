@@ -46,6 +46,7 @@ class TikTokShopApiClient
         }
 
         $brands = $this->resolveBrands($shop);
+        $skuMap = $this->resolveSkuMap($shop);
         $brandNames = $includeBrandSummaries ? $this->brandNamesExcludingCatchAll($brands) : [];
         $brandOrderValueSummaries = [];
         $brandDashboardSummaries = [];
@@ -93,12 +94,12 @@ class TikTokShopApiClient
                 }
 
                 if ($brandNames !== []) {
-                    $this->accumulateBrandSummaries($rawOrder, $brands, $brandNames, $timezone, $brandOrderValueSummaries, $brandDashboardSummaries);
+                    $this->accumulateBrandSummaries($rawOrder, $brands, $skuMap, $brandNames, $timezone, $brandOrderValueSummaries, $brandDashboardSummaries);
                 }
 
                 $order = $rawOrder;
                 if ($brandFilter !== null) {
-                    $order = $this->filterOrderByBrand($order, $brands, $brandFilter);
+                    $order = $this->filterOrderByBrand($order, $brands, $skuMap, $brandFilter);
                     if ($order === null) {
                         continue;
                     }
@@ -111,7 +112,7 @@ class TikTokShopApiClient
                     ? strtoupper($order['status'])
                     : 'UNKNOWN';
                 $statusCounts[$status] = ($statusCounts[$status] ?? 0) + 1;
-                $this->addDashboardOrder($order, $status, $dashboardSummary, $brands, $timezone);
+                $this->addDashboardOrder($order, $status, $dashboardSummary, $brands, $skuMap, $timezone);
 
                 if (count($visibleOrders) < $visibleLimit) {
                     $visibleOrders[] = $order;
@@ -190,6 +191,7 @@ class TikTokShopApiClient
     /**
      * @param  array<string, mixed>  $order
      * @param  list<array{name: string, match: list<string>}>  $brands
+     * @param  array<string, string>  $skuMap
      * @param  list<string>  $brandNames
      * @param  array<string, array<string, mixed>>  $orderValueSummaries
      * @param  array<string, array<string, mixed>>  $dashboardSummaries
@@ -197,13 +199,14 @@ class TikTokShopApiClient
     private function accumulateBrandSummaries(
         array $order,
         array $brands,
+        array $skuMap,
         array $brandNames,
         string $timezone,
         array &$orderValueSummaries,
         array &$dashboardSummaries,
     ): void {
         foreach ($brandNames as $brandName) {
-            $filtered = $this->filterOrderByBrand($order, $brands, [$brandName]);
+            $filtered = $this->filterOrderByBrand($order, $brands, $skuMap, [$brandName]);
 
             if ($filtered === null) {
                 continue;
@@ -216,7 +219,7 @@ class TikTokShopApiClient
             $status = is_string($filtered['status'] ?? null) && $filtered['status'] !== ''
                 ? strtoupper($filtered['status'])
                 : 'UNKNOWN';
-            $this->addDashboardOrder($filtered, $status, $dashboardSummaries[$brandName], $brands, $timezone);
+            $this->addDashboardOrder($filtered, $status, $dashboardSummaries[$brandName], $brands, $skuMap, $timezone);
         }
     }
 
@@ -329,8 +332,9 @@ class TikTokShopApiClient
      * @param  array<string, mixed>  $order
      * @param  array<string, mixed>  $summary
      * @param  list<array{name: string, match: list<string>}>  $brands
+     * @param  array<string, string>  $skuMap
      */
-    private function addDashboardOrder(array $order, string $status, array &$summary, array $brands, string $timezone): void
+    private function addDashboardOrder(array $order, string $status, array &$summary, array $brands, array $skuMap, string $timezone): void
     {
         $isCanceled = in_array($status, ['CANCELLED', 'CANCELED'], true);
         $isCompleted = in_array($status, ['DELIVERED', 'COMPLETED'], true);
@@ -392,7 +396,7 @@ class TikTokShopApiClient
             }
 
             if ($brands !== []) {
-                $brandName = $this->matchBrand($name, $brands) ?? $brands[array_key_last($brands)]['name'];
+                $brandName = $this->classifyBrand($sku, $name, $brands, $skuMap);
                 $summary['brand_mix'][$brandName] = $this->addToSegment($summary['brand_mix'][$brandName] ?? $this->emptySegment(), $isCanceled, $value, $platformDiscount, $quantity);
             }
         }
@@ -479,6 +483,35 @@ class TikTokShopApiClient
         return null;
     }
 
+    /** @return array<string, string> */
+    private function resolveSkuMap(TikTokShop $shop): array
+    {
+        $map = config('tiktok_brand_skus.by_shop_id.'.$shop->shop_id)
+            ?? config('tiktok_brand_skus.by_name.'.$shop->name);
+
+        return is_array($map) ? $map : [];
+    }
+
+    /**
+     * Classifies a line item's brand: an exact seller_sku match in the
+     * authoritative SKU list wins first (product names are unreliable for
+     * bundles/GWP items); otherwise falls back to keyword matching against
+     * the product name, then the shop-name catch-all.
+     *
+     * @param  list<array{name: string, match: list<string>}>  $brands
+     * @param  array<string, string>  $skuMap
+     */
+    private function classifyBrand(string $sku, string $productName, array $brands, array $skuMap): string
+    {
+        $normalizedSku = strtoupper(trim($sku));
+
+        if ($normalizedSku !== '' && isset($skuMap[$normalizedSku])) {
+            return $skuMap[$normalizedSku];
+        }
+
+        return $this->matchBrand($productName, $brands) ?? $brands[array_key_last($brands)]['name'];
+    }
+
     /**
      * Trims an order's line items to only those matching one of the selected
      * brands, or returns null when nothing survives (the order is skipped
@@ -487,10 +520,11 @@ class TikTokShopApiClient
      *
      * @param  array<string, mixed>  $order
      * @param  list<array{name: string, match: list<string>}>  $brands
+     * @param  array<string, string>  $skuMap
      * @param  list<string>  $brandFilter
      * @return array<string, mixed>|null
      */
-    private function filterOrderByBrand(array $order, array $brands, array $brandFilter): ?array
+    private function filterOrderByBrand(array $order, array $brands, array $skuMap, array $brandFilter): ?array
     {
         $lineItems = is_array($order['line_items'] ?? null) ? $order['line_items'] : [];
         $matching = [];
@@ -500,8 +534,9 @@ class TikTokShopApiClient
                 continue;
             }
 
+            $sku = $this->firstPresentString($lineItem, ['seller_sku', 'sku_id', 'sku_name', 'product_id']) ?? '';
             $name = $this->firstPresentString($lineItem, ['product_name', 'product_title', 'sku_name']) ?? '';
-            $brandName = $brands === [] ? null : ($this->matchBrand($name, $brands) ?? $brands[array_key_last($brands)]['name']);
+            $brandName = $brands === [] ? null : $this->classifyBrand($sku, $name, $brands, $skuMap);
 
             if ($brandName !== null && in_array($brandName, $brandFilter, true)) {
                 $matching[] = $lineItem;

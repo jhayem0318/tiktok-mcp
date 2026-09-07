@@ -815,6 +815,74 @@ class ServiceEndpointsTest extends TestCase
             ->assertJsonPath('result.structuredContent.data.brand_summaries.Eufy.dashboard_summary.nmv', 0);
     }
 
+    public function test_tiktok_shop_orders_sku_map_wins_over_keyword_match(): void
+    {
+        $this->configureTikTokShop();
+        config()->set([
+            'services.tiktok.api_url' => 'https://open-api.tiktokglobalshop.com',
+            'services.tiktok.mcp_bearer_token' => 'mcp-secret',
+            'tiktok_brands.by_name.Anker Charging' => [
+                ['name' => 'Soundcore', 'match' => ['soundcore']],
+                ['name' => 'Eufy', 'match' => ['eufy']],
+                ['name' => 'Solix', 'match' => ['solix']],
+                ['name' => 'Anker', 'match' => ['anker']],
+            ],
+            'tiktok_brand_skus.by_name.Anker Charging' => [
+                // No brand keyword in the name at all — only the SKU map can classify this one.
+                'TESTSKU1' => 'Soundcore',
+                // Name says "Solix" (keyword match would pick Solix); the SKU map disagrees and must win.
+                'TESTSKU2' => 'Eufy',
+            ],
+        ]);
+
+        $authorization = TikTokShopAuthorization::query()->create([
+            'app_key' => 'test-app-key', 'open_id' => 'seller-open-id',
+            'seller_name' => 'Anker Charging', 'seller_base_region' => 'PH', 'user_type' => 0,
+            'access_token' => 'access-token-value', 'refresh_token' => 'refresh-token-value',
+            'access_token_expires_at' => now()->addWeek(), 'refresh_token_expires_at' => now()->addYear(),
+        ]);
+        TikTokShop::query()->create([
+            'tik_tok_shop_authorization_id' => $authorization->id, 'shop_id' => 'shop-id',
+            'shop_cipher' => 'secret-shop-cipher', 'name' => 'Anker Charging', 'region' => 'PH',
+        ]);
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://open-api.tiktokglobalshop.com/order/202309/orders/search*' => Http::response([
+                'code' => 0, 'message' => 'Success', 'data' => [
+                    'orders' => [[
+                        'id' => 'private-order-1', 'status' => 'DELIVERED',
+                        'line_items' => [
+                            [
+                                'sale_price' => '100', 'platform_discount' => '0', 'currency' => 'PHP',
+                                'seller_sku' => 'TESTSKU1', 'product_name' => 'Portable Speaker 3', 'quantity' => 1,
+                            ],
+                            [
+                                'sale_price' => '200', 'platform_discount' => '0', 'currency' => 'PHP',
+                                'seller_sku' => 'TESTSKU2', 'product_name' => 'Anker Solix Power Station', 'quantity' => 1,
+                            ],
+                        ],
+                    ]],
+                    'total_count' => 1, 'next_page_token' => '',
+                ],
+            ]),
+        ]);
+
+        $response = $this->withToken('mcp-secret')->postJson('/api/tiktok/mcp', [
+            'jsonrpc' => '2.0', 'id' => 10, 'method' => 'tools/call',
+            'params' => [
+                'name' => 'tiktok_shop_orders',
+                'arguments' => ['start_date' => '2026-09-01', 'end_date' => '2026-09-04', 'limit' => 10],
+            ],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.brand_mix.0.name', 'Eufy')
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.brand_mix.0.gmv', 200)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.brand_mix.1.name', 'Soundcore')
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.brand_mix.1.gmv', 100);
+    }
+
     public function test_tiktok_shop_analytics_aggregate_gmv_across_every_page(): void
     {
         $this->configureTikTokShop();

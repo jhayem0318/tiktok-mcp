@@ -112,6 +112,13 @@ class ClientDashboardController extends Controller
                 'result' => [
                     'source' => 'Saved TikTok Shop API snapshot ('.$selectedBrands[0].') · '.$snapshot->synced_at,
                     'date_range' => $snapshot->order_summary['date_range'] ?? [],
+                    // Brand slices come from the same pagination pass as the whole-shop
+                    // snapshot, so page count is inherited from it; records_scanned is
+                    // this brand's own order count, not the whole-shop total.
+                    'status_summary' => [
+                        'records_scanned' => $brandData['order_value_summary']['orders_scanned'] ?? 0,
+                        'pages_fetched' => $snapshot->order_summary['status_summary']['pages_fetched'] ?? 0,
+                    ],
                     'order_value_summary' => $brandData['order_value_summary'] ?? [],
                     'dashboard_summary' => $brandData['dashboard_summary'] ?? [],
                     'finance_summary' => $snapshot->finance_summary['summary'] ?? [],
