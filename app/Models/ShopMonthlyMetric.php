@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'tik_tok_shop_id', 'period_start', 'period_end', 'currency', 'source', 'order_summary',
-    'finance_summary', 'orders_complete', 'finance_available', 'synced_at',
+    'finance_summary', 'channel_summary', 'orders_complete', 'finance_available', 'synced_at',
 ])]
 class ShopMonthlyMetric extends Model
 {
@@ -19,6 +19,7 @@ class ShopMonthlyMetric extends Model
             'period_end' => 'date',
             'order_summary' => 'array',
             'finance_summary' => 'array',
+            'channel_summary' => 'array',
             'orders_complete' => 'boolean',
             'finance_available' => 'boolean',
             'synced_at' => 'datetime',

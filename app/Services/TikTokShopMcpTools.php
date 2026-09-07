@@ -158,8 +158,7 @@ class TikTokShopMcpTools
         array $arguments,
         TikTokShop $shop,
         bool $preserveResourceIds,
-    ): array
-    {
+    ): array {
         $dataset = str_starts_with($name, 'tiktok_shop_') ? substr($name, 12) : '';
 
         if (! in_array($dataset, self::DATASETS, true)) {
@@ -175,7 +174,7 @@ class TikTokShopMcpTools
 
         $data = match ($dataset) {
             'analytics' => $this->client->analytics($shop, $start->toDateString(), $end->toDateString(), $limit, $pageToken),
-            'orders' => $this->client->orders($shop, $start->getTimestamp(), $end->getTimestamp(), $limit, $pageToken),
+            'orders' => $this->client->orders($shop, $start->getTimestamp(), $end->getTimestamp(), $limit, $pageToken, $timezone),
             'products' => $this->client->products($shop, $limit, $pageToken),
             'finance' => $this->client->finance($shop, $start->getTimestamp(), $end->getTimestamp(), $limit, $pageToken),
             'returns' => $this->client->returns($shop, $start->getTimestamp(), $end->getTimestamp(), $limit, $pageToken),
@@ -207,8 +206,8 @@ class TikTokShopMcpTools
     }
 
     /**
-     * @param array<string, mixed> $data
-     * @param array<string, mixed> $arguments
+     * @param  array<string, mixed>  $data
+     * @param  array<string, mixed>  $arguments
      * @return array<string, mixed>
      */
     private function reconciliation(string $dataset, array $data, array $arguments): array

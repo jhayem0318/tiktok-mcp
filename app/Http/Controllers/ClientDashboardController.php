@@ -90,6 +90,8 @@ class ClientDashboardController extends Controller
                     'source' => 'Saved TikTok Shop API snapshot · '.$snapshot->synced_at,
                     'finance_summary' => $snapshot->finance_summary['summary'] ?? [],
                     'finance_unavailable' => $snapshot->finance_available ? null : 'Finance was unavailable when this snapshot was saved.',
+                    'channel_performance' => $snapshot->channel_summary['channel_breakdown'] ?? [],
+                    'channel_performance_unavailable' => $snapshot->channel_summary === null ? 'Channel performance was unavailable when this snapshot was saved.' : null,
                 ]),
             ]);
         }

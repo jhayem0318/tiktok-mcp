@@ -49,6 +49,20 @@ class GenerateClientDashboardReport implements ShouldQueue
                 $financeUnavailable = 'Finance statement data is not available for this Shop and period.';
             }
 
+            $analytics = null;
+            $channelPerformanceUnavailable = null;
+
+            try {
+                $analytics = $tools->callForShop('tiktok_shop_analytics', [
+                    'start_date' => $report->start_date->toDateString(),
+                    'end_date' => $report->end_date->toDateString(),
+                    'limit' => 100,
+                ], $report->shop);
+            } catch (Throwable $exception) {
+                report($exception);
+                $channelPerformanceUnavailable = 'Channel performance data is not available for this Shop and period.';
+            }
+
             $report->update([
                 'status' => 'completed',
                 'result' => [
@@ -61,6 +75,8 @@ class GenerateClientDashboardReport implements ShouldQueue
                     'order_details' => data_get($response, 'data.orders', []),
                     'finance_summary' => data_get($finance, 'data.finance_summary', []),
                     'finance_unavailable' => $financeUnavailable,
+                    'channel_performance' => data_get($analytics, 'data.performance_summary.channel_breakdown', []),
+                    'channel_performance_unavailable' => $channelPerformanceUnavailable,
                     'reconciliation' => $response['reconciliation'] ?? [],
                 ],
                 'completed_at' => now(),

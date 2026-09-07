@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\TikTokShopReviewController;
 use App\Models\TikTokShop;
 use App\Models\TikTokShopAuthorization;
 use Carbon\CarbonImmutable;
@@ -537,6 +538,92 @@ class ServiceEndpointsTest extends TestCase
         Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'page_token=next-page'));
     }
 
+    public function test_tiktok_shop_orders_compute_brand_mix_and_campaign_periods(): void
+    {
+        $this->configureTikTokShop();
+        config()->set([
+            'services.tiktok.api_url' => 'https://open-api.tiktokglobalshop.com',
+            'services.tiktok.mcp_bearer_token' => 'mcp-secret',
+            'tiktok_brands.by_name.Anker Charging' => [
+                ['name' => 'Eufy', 'match' => ['eufy']],
+                ['name' => 'Anker', 'match' => ['anker']],
+            ],
+        ]);
+
+        $authorization = TikTokShopAuthorization::query()->create([
+            'app_key' => 'test-app-key', 'open_id' => 'seller-open-id',
+            'seller_name' => 'Anker Charging', 'seller_base_region' => 'PH', 'user_type' => 0,
+            'access_token' => 'access-token-value', 'refresh_token' => 'refresh-token-value',
+            'access_token_expires_at' => now()->addWeek(), 'refresh_token_expires_at' => now()->addYear(),
+        ]);
+        TikTokShop::query()->create([
+            'tik_tok_shop_authorization_id' => $authorization->id, 'shop_id' => 'shop-id',
+            'shop_cipher' => 'secret-shop-cipher', 'name' => 'Anker Charging', 'region' => 'PH',
+        ]);
+
+        $dayThree = CarbonImmutable::parse('2026-09-03 10:00:00', 'Asia/Manila')->getTimestamp();
+        $dayThreeCanceled = CarbonImmutable::parse('2026-09-03 12:00:00', 'Asia/Manila')->getTimestamp();
+        $dayTwenty = CarbonImmutable::parse('2026-09-20 10:00:00', 'Asia/Manila')->getTimestamp();
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://open-api.tiktokglobalshop.com/order/202309/orders/search*' => Http::response([
+                'code' => 0, 'message' => 'Success', 'data' => [
+                    'orders' => [
+                        [
+                            'id' => 'private-order-1', 'status' => 'DELIVERED', 'create_time' => $dayThree,
+                            'line_items' => [[
+                                'sale_price' => '100', 'platform_discount' => '10', 'currency' => 'PHP',
+                                'seller_sku' => 'A1', 'product_name' => 'Anker Zolo Charger', 'quantity' => 1,
+                            ]],
+                        ],
+                        [
+                            'id' => 'private-order-2', 'status' => 'CANCELLED', 'create_time' => $dayThreeCanceled,
+                            'line_items' => [[
+                                'sale_price' => '50', 'platform_discount' => '5', 'currency' => 'PHP',
+                                'seller_sku' => 'A2', 'product_name' => 'Anker Cable', 'quantity' => 1,
+                            ]],
+                        ],
+                        [
+                            'id' => 'private-order-3', 'status' => 'DELIVERED', 'create_time' => $dayTwenty,
+                            'line_items' => [[
+                                'sale_price' => '200', 'platform_discount' => '0', 'currency' => 'PHP',
+                                'seller_sku' => 'E1', 'product_name' => 'Eufy Security Cam', 'quantity' => 1,
+                            ]],
+                        ],
+                    ],
+                    'total_count' => 3, 'next_page_token' => '',
+                ],
+            ]),
+        ]);
+
+        $response = $this->withToken('mcp-secret')->postJson('/api/tiktok/mcp', [
+            'jsonrpc' => '2.0', 'id' => 6, 'method' => 'tools/call',
+            'params' => [
+                'name' => 'tiktok_shop_orders',
+                'arguments' => ['start_date' => '2026-09-01', 'end_date' => '2026-09-30', 'limit' => 10],
+            ],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.brand_mix.0.name', 'Eufy')
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.brand_mix.0.gmv', 200)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.brand_mix.0.canceled_value', 0)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.brand_mix.0.nmv', 200)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.brand_mix.1.name', 'Anker')
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.brand_mix.1.gmv', 165)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.brand_mix.1.canceled_value', 55)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.brand_mix.1.nmv', 110)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.campaign_periods.0.name', 'Days 1-7')
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.campaign_periods.0.orders', 2)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.campaign_periods.0.gmv', 165)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.campaign_periods.0.canceled_value', 55)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.campaign_periods.0.nmv', 110)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.campaign_periods.1.name', 'Days 16-26')
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.campaign_periods.1.orders', 1)
+            ->assertJsonPath('result.structuredContent.data.dashboard_summary.campaign_periods.1.gmv', 200);
+    }
+
     public function test_tiktok_shop_analytics_aggregate_gmv_across_every_page(): void
     {
         $this->configureTikTokShop();
@@ -635,6 +722,81 @@ class ServiceEndpointsTest extends TestCase
         Http::assertSent(fn (Request $request): bool => $request['page_token'] === '2');
     }
 
+    public function test_tiktok_shop_analytics_channel_breakdown_sums_fixed_buckets(): void
+    {
+        $this->configureTikTokShop();
+        config()->set([
+            'services.tiktok.api_url' => 'https://open-api.tiktokglobalshop.com',
+            'services.tiktok.mcp_bearer_token' => 'mcp-secret',
+        ]);
+        $authorization = TikTokShopAuthorization::query()->create([
+            'app_key' => 'test-app-key', 'open_id' => 'seller-open-id',
+            'seller_name' => 'Anker Charging', 'seller_base_region' => 'PH', 'user_type' => 0,
+            'access_token' => 'access-token-value', 'refresh_token' => 'refresh-token-value',
+            'access_token_expires_at' => now()->addWeek(), 'refresh_token_expires_at' => now()->addYear(),
+        ]);
+        TikTokShop::query()->create([
+            'tik_tok_shop_authorization_id' => $authorization->id, 'shop_id' => 'shop-id',
+            'shop_cipher' => 'secret-shop-cipher', 'name' => 'Anker Charging', 'region' => 'PH',
+        ]);
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://open-api.tiktokglobalshop.com/analytics/202605/shop_products/performance*' => Http::response([
+                'code' => 0, 'message' => 'Success', 'data' => [
+                    'products' => [[
+                        'seller_product_card_performance' => [
+                            'attributed_gmv' => ['amount' => '50.00', 'currency' => 'PHP'],
+                            'attributed_orders' => 2, 'attributed_sold_items' => 3,
+                        ],
+                        'seller_live_performance' => [
+                            'attributed_gmv' => ['amount' => '30.00', 'currency' => 'PHP'],
+                            'attributed_orders' => 1, 'attributed_sold_items' => 1,
+                        ],
+                        'seller_video_performance' => [
+                            'attributed_gmv' => ['amount' => '0.00', 'currency' => 'PHP'],
+                            'attributed_orders' => 0, 'attributed_sold_items' => 0,
+                        ],
+                        'affiliate_live_performance' => [
+                            'live_attributed_gmv' => ['amount' => '20.00', 'currency' => 'PHP'],
+                        ],
+                        'affiliate_video_performance' => [
+                            'attributed_video_gmv' => ['amount' => '15.00', 'currency' => 'PHP'],
+                        ],
+                        'total_performance' => [
+                            'gmv' => ['amount' => '115.00', 'currency' => 'PHP'],
+                            'orders' => 3, 'items_sold' => 4,
+                            'refunds' => ['amount' => '0.00', 'currency' => 'PHP'], 'refunded_items' => 0,
+                        ],
+                    ]],
+                    'total_count' => 1, 'next_page_token' => '',
+                ],
+            ]),
+        ]);
+
+        $response = $this->withToken('mcp-secret')->postJson('/api/tiktok/mcp', [
+            'jsonrpc' => '2.0', 'id' => 7, 'method' => 'tools/call',
+            'params' => ['name' => 'tiktok_shop_analytics', 'arguments' => [
+                'start_date' => '2026-09-01', 'end_date' => '2026-09-04', 'limit' => 1,
+            ]],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('result.structuredContent.data.performance_summary.channel_breakdown.0.name', 'Product cards')
+            ->assertJsonPath('result.structuredContent.data.performance_summary.channel_breakdown.0.gmv', 50)
+            ->assertJsonPath('result.structuredContent.data.performance_summary.channel_breakdown.0.orders', 2)
+            ->assertJsonPath('result.structuredContent.data.performance_summary.channel_breakdown.1.name', 'LIVE (Own account)')
+            ->assertJsonPath('result.structuredContent.data.performance_summary.channel_breakdown.1.gmv', 30)
+            ->assertJsonPath('result.structuredContent.data.performance_summary.channel_breakdown.2.name', 'Videos (Own account)')
+            ->assertJsonPath('result.structuredContent.data.performance_summary.channel_breakdown.2.gmv', 0)
+            ->assertJsonPath('result.structuredContent.data.performance_summary.channel_breakdown.3.name', 'LIVE (Affiliates)')
+            ->assertJsonPath('result.structuredContent.data.performance_summary.channel_breakdown.3.gmv', 20)
+            ->assertJsonPath('result.structuredContent.data.performance_summary.channel_breakdown.3.orders', null)
+            ->assertJsonPath('result.structuredContent.data.performance_summary.channel_breakdown.4.name', 'Videos (Affiliates)')
+            ->assertJsonPath('result.structuredContent.data.performance_summary.channel_breakdown.4.gmv', 15)
+            ->assertJsonPath('result.structuredContent.data.performance_summary.channel_breakdown.4.orders', null);
+    }
+
     public function test_tiktok_review_page_requires_configured_reviewer_credentials(): void
     {
         $this->get('/tiktok/review/login')
@@ -730,7 +892,7 @@ class ServiceEndpointsTest extends TestCase
 
     public function test_tiktok_review_page_displays_return_orders_response_shape(): void
     {
-        $controller = new \ReflectionClass(\App\Http\Controllers\TikTokShopReviewController::class);
+        $controller = new \ReflectionClass(TikTokShopReviewController::class);
         $method = $controller->getMethod('records');
         $instance = $controller->newInstanceWithoutConstructor();
 

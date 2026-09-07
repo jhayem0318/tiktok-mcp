@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\TikTokShopApiException;
 use App\Models\TikTokShop;
 use App\Models\TikTokShopAuthorization;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
@@ -15,9 +16,16 @@ class TikTokShopApiClient
 
     private const MAX_PAGES = 250;
 
-    public function __construct(private readonly TikTokShopTokenManager $tokenManager)
-    {
-    }
+    /** Fixed day-of-month campaign windows used for the campaign period segmentation section. */
+    private const CAMPAIGN_PERIODS = [
+        ['label' => 'Days 1-7', 'from' => 1, 'to' => 7],
+        ['label' => 'Days 8-12', 'from' => 8, 'to' => 12],
+        ['label' => 'Days 13-15', 'from' => 13, 'to' => 15],
+        ['label' => 'Days 16-26', 'from' => 16, 'to' => 26],
+        ['label' => 'Days 27-31', 'from' => 27, 'to' => 31],
+    ];
+
+    public function __construct(private readonly TikTokShopTokenManager $tokenManager) {}
 
     /** @return list<array<string, mixed>> */
     public function authorizedShops(TikTokShopAuthorization $authorization): array
@@ -28,11 +36,13 @@ class TikTokShopApiClient
     }
 
     /** @return array<string, mixed> */
-    public function orders(TikTokShop $shop, int $start, int $end, int $pageSize = 20, ?string $pageToken = null): array
+    public function orders(TikTokShop $shop, int $start, int $end, int $pageSize = 20, ?string $pageToken = null, string $timezone = 'UTC'): array
     {
         if ($pageToken !== null && $pageToken !== '') {
             return $this->ordersPage($shop, $start, $end, $pageSize, $pageToken);
         }
+
+        $brands = $this->resolveBrands($shop);
 
         $visibleLimit = max(1, min(100, $pageSize));
         $visibleOrders = [];
@@ -60,6 +70,7 @@ class TikTokShopApiClient
             'units' => 0, 'canceled_units' => 0, 'canceled_value' => 0.0,
             'platform_subsidy' => 0.0, 'top_products' => [], 'top_cancel_skus' => [],
             'payment_methods' => [], 'locations' => [], 'cancel_reasons' => [],
+            'brand_mix' => [], 'campaign_periods' => [],
         ];
 
         while ($pagesFetched < self::MAX_PAGES) {
@@ -97,7 +108,7 @@ class TikTokShopApiClient
                     ? strtoupper($order['status'])
                     : 'UNKNOWN';
                 $statusCounts[$status] = ($statusCounts[$status] ?? 0) + 1;
-                $this->addDashboardOrder($order, $status, $dashboardSummary);
+                $this->addDashboardOrder($order, $status, $dashboardSummary, $brands, $timezone);
 
                 if (count($visibleOrders) < $visibleLimit) {
                     $visibleOrders[] = $order;
@@ -218,16 +229,25 @@ class TikTokShopApiClient
      * Aggregate only commercial and coarse-geography fields. Raw customer and
      * delivery data is never retained in this summary.
      *
-     * @param array<string, mixed> $order
-     * @param array<string, mixed> $summary
+     * @param  array<string, mixed>  $order
+     * @param  array<string, mixed>  $summary
+     * @param  list<array{name: string, match: list<string>}>  $brands
      */
-    private function addDashboardOrder(array $order, string $status, array &$summary): void
+    private function addDashboardOrder(array $order, string $status, array &$summary, array $brands, string $timezone): void
     {
         $isCanceled = in_array($status, ['CANCELLED', 'CANCELED'], true);
         $isCompleted = in_array($status, ['DELIVERED', 'COMPLETED'], true);
         $summary[$isCanceled ? 'canceled_orders' : 'non_canceled_orders']++;
         if ($isCompleted) {
             $summary['completed_orders']++;
+        }
+
+        $period = $this->campaignPeriodLabel($order['create_time'] ?? null, $timezone);
+        if ($period !== null) {
+            $segment = $summary['campaign_periods'][$period] ?? $this->emptySegment();
+            $segment['orders']++;
+            $segment[$isCanceled ? 'canceled_orders' : 'non_canceled_orders']++;
+            $summary['campaign_periods'][$period] = $segment;
         }
 
         $paymentMethod = $this->firstPresentString($order, ['payment_method_name', 'payment_method', 'payment_type']);
@@ -269,19 +289,107 @@ class TikTokShopApiClient
             $current['value'] += $value;
             $current['units'] += $quantity;
             $summary[$bucket][$sku] = $current;
+
+            if ($period !== null) {
+                $summary['campaign_periods'][$period] = $this->addToSegment($summary['campaign_periods'][$period], $isCanceled, $value, $platformDiscount, $quantity);
+            }
+
+            if ($brands !== []) {
+                $brandName = $this->matchBrand($name, $brands) ?? $brands[array_key_last($brands)]['name'];
+                $summary['brand_mix'][$brandName] = $this->addToSegment($summary['brand_mix'][$brandName] ?? $this->emptySegment(), $isCanceled, $value, $platformDiscount, $quantity);
+            }
         }
+    }
+
+    /** @return array<string, float|int> */
+    private function emptySegment(): array
+    {
+        return [
+            'gmv' => 0.0, 'canceled_value' => 0.0,
+            'units' => 0, 'canceled_units' => 0,
+            'subsidy' => 0.0,
+            'orders' => 0, 'non_canceled_orders' => 0, 'canceled_orders' => 0,
+        ];
+    }
+
+    /** @param array<string, float|int> $segment @return array<string, float|int> */
+    private function addToSegment(array $segment, bool $isCanceled, float $value, float $platformDiscount, float $quantity): array
+    {
+        $segment['gmv'] += $value;
+        if ($isCanceled) {
+            $segment['canceled_value'] += $value;
+            $segment['canceled_units'] += $quantity;
+        } else {
+            $segment['units'] += $quantity;
+            $segment['subsidy'] += $platformDiscount;
+        }
+
+        return $segment;
+    }
+
+    /** @return list<array{name: string, match: list<string>}> */
+    private function resolveBrands(TikTokShop $shop): array
+    {
+        $configured = config('tiktok_brands.by_shop_id.'.$shop->shop_id)
+            ?? config('tiktok_brands.by_name.'.$shop->name);
+
+        if (! is_array($configured) || $configured === []) {
+            return [];
+        }
+
+        return [...$configured, ['name' => $shop->name, 'match' => []]];
+    }
+
+    /** @param list<array{name: string, match: list<string>}> $brands */
+    private function matchBrand(string $productName, array $brands): ?string
+    {
+        $haystack = strtolower($productName);
+
+        foreach ($brands as $brand) {
+            if ($brand['match'] === []) {
+                return $brand['name'];
+            }
+
+            foreach ($brand['match'] as $keyword) {
+                if (str_contains($haystack, strtolower($keyword))) {
+                    return $brand['name'];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function campaignPeriodLabel(mixed $createTime, string $timezone): ?string
+    {
+        if (! is_numeric($createTime)) {
+            return null;
+        }
+
+        $day = CarbonImmutable::createFromTimestamp((int) $createTime, $timezone)->day;
+
+        foreach (self::CAMPAIGN_PERIODS as $definition) {
+            if ($day >= $definition['from'] && $day <= $definition['to']) {
+                return $definition['label'];
+            }
+        }
+
+        return null;
     }
 
     /** @param array<string, mixed> $summary @param array<string, mixed> $values @return array<string, mixed> */
     private function dashboardSummary(array $summary, array $values): array
     {
-        $gmv = (float) $values['calculated_gmv'];
+        $gmv = round((float) $values['calculated_gmv'], 2);
         $nonCanceled = (int) $summary['non_canceled_orders'];
         $sort = static function (array $items): array {
             usort($items, static fn (array $left, array $right): int => $right['value'] <=> $left['value']);
+
             return array_slice($items, 0, 20);
         };
-        arsort($summary['payment_methods']); arsort($summary['locations']); arsort($summary['cancel_reasons']);
+        arsort($summary['payment_methods']);
+        arsort($summary['locations']);
+        arsort($summary['cancel_reasons']);
 
         return [
             'nmv' => round($gmv - (float) $summary['canceled_value'], 2),
@@ -296,27 +404,91 @@ class TikTokShopApiClient
             'payment_methods' => array_map(static fn (string $name, int $orders): array => ['name' => $name, 'orders' => $orders], array_keys($summary['payment_methods']), $summary['payment_methods']),
             'locations' => array_map(static fn (string $name, int $orders): array => ['name' => $name, 'orders' => $orders], array_keys($summary['locations']), $summary['locations']),
             'cancel_reasons' => array_map(static fn (string $name, int $orders): array => ['name' => $name, 'orders' => $orders], array_keys($summary['cancel_reasons']), $summary['cancel_reasons']),
+            'brand_mix' => $this->formatBrandMix($summary['brand_mix']),
+            'campaign_periods' => $this->formatCampaignPeriods($summary['campaign_periods']),
+        ];
+    }
+
+    /** @param array<string, array<string, float|int>> $segments @return list<array<string, mixed>> */
+    private function formatBrandMix(array $segments): array
+    {
+        $formatted = [];
+        foreach ($segments as $name => $segment) {
+            $formatted[] = $this->formatSegment($name, $segment);
+        }
+
+        usort($formatted, static fn (array $left, array $right): int => $right['gmv'] <=> $left['gmv']);
+
+        return $formatted;
+    }
+
+    /** @param array<string, array<string, float|int>> $periods @return list<array<string, mixed>> */
+    private function formatCampaignPeriods(array $periods): array
+    {
+        $formatted = [];
+        foreach (self::CAMPAIGN_PERIODS as $definition) {
+            $label = $definition['label'];
+            if (! isset($periods[$label])) {
+                continue;
+            }
+            $formatted[] = $this->formatSegment($label, $periods[$label]);
+        }
+
+        return $formatted;
+    }
+
+    /** @param array<string, float|int> $segment @return array<string, mixed> */
+    private function formatSegment(string $name, array $segment): array
+    {
+        $gmv = (float) $segment['gmv'];
+        $canceledValue = (float) $segment['canceled_value'];
+
+        return [
+            'name' => $name,
+            'gmv' => round($gmv, 2),
+            'nmv' => round($gmv - $canceledValue, 2),
+            'canceled_value' => round($canceledValue, 2),
+            'cancel_rate_by_value' => $gmv > 0 ? round(($canceledValue / $gmv) * 100, 2) : 0.0,
+            'platform_subsidy' => round((float) $segment['subsidy'], 2),
+            'units' => $segment['units'],
+            'canceled_units' => $segment['canceled_units'],
+            'orders' => $segment['orders'],
         ];
     }
 
     /** @param array<string, mixed> $data @param list<string> $keys */
     private function firstPresentString(array $data, array $keys): ?string
     {
-        foreach ($keys as $key) { if (is_string($data[$key] ?? null) && $data[$key] !== '') { return $data[$key]; } }
+        foreach ($keys as $key) {
+            if (is_string($data[$key] ?? null) && $data[$key] !== '') {
+                return $data[$key];
+            }
+        }
+
         return null;
     }
 
     /** @param array<string, mixed> $data @param list<string> $keys */
     private function firstPresentNumber(array $data, array $keys): ?float
     {
-        foreach ($keys as $key) { if (is_numeric($data[$key] ?? null)) { return (float) $data[$key]; } }
+        foreach ($keys as $key) {
+            if (is_numeric($data[$key] ?? null)) {
+                return (float) $data[$key];
+            }
+        }
+
         return null;
     }
 
     /** @param array<string, mixed> $data @param list<string> $keys */
     private function firstPresentArray(array $data, array $keys): ?array
     {
-        foreach ($keys as $key) { if (is_array($data[$key] ?? null)) { return $data[$key]; } }
+        foreach ($keys as $key) {
+            if (is_array($data[$key] ?? null)) {
+                return $data[$key];
+            }
+        }
+
         return null;
     }
 
@@ -440,14 +612,46 @@ class TikTokShopApiClient
             'items_sold' => $this->sumNestedNumeric($products, ['total_performance', 'items_sold']),
             'refund_amount' => $this->sumNestedMoney($products, ['total_performance', 'refunds', 'amount']),
             'refunded_items' => $this->sumNestedNumeric($products, ['total_performance', 'refunded_items']),
+            'channel_breakdown' => $this->channelBreakdown($products),
         ];
 
         return $result;
     }
 
     /**
-     * @param array<string, int|string> $query
-     * @param array<string, mixed> $body
+     * Revenue/orders/units per fixed channel bucket. Affiliate live and video
+     * sub-metrics only expose GMV in this API (no order/unit counts), so those
+     * two buckets report orders/units as null rather than a false zero.
+     *
+     * @param  list<array<string, mixed>>  $products
+     * @return list<array<string, mixed>>
+     */
+    private function channelBreakdown(array $products): array
+    {
+        $buckets = [
+            'Product cards' => ['path' => 'seller_product_card_performance', 'gmvKey' => 'attributed_gmv', 'hasCounts' => true],
+            'LIVE (Own account)' => ['path' => 'seller_live_performance', 'gmvKey' => 'attributed_gmv', 'hasCounts' => true],
+            'Videos (Own account)' => ['path' => 'seller_video_performance', 'gmvKey' => 'attributed_gmv', 'hasCounts' => true],
+            'LIVE (Affiliates)' => ['path' => 'affiliate_live_performance', 'gmvKey' => 'live_attributed_gmv', 'hasCounts' => false],
+            'Videos (Affiliates)' => ['path' => 'affiliate_video_performance', 'gmvKey' => 'attributed_video_gmv', 'hasCounts' => false],
+        ];
+
+        $result = [];
+        foreach ($buckets as $label => $config) {
+            $result[] = [
+                'name' => $label,
+                'gmv' => round($this->sumNestedMoney($products, [$config['path'], $config['gmvKey'], 'amount']), 2),
+                'orders' => $config['hasCounts'] ? (int) $this->sumNestedNumeric($products, [$config['path'], 'attributed_orders']) : null,
+                'units' => $config['hasCounts'] ? (int) $this->sumNestedNumeric($products, [$config['path'], 'attributed_sold_items']) : null,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param  array<string, int|string>  $query
+     * @param  array<string, mixed>  $body
      * @return array{array<string, mixed>, list<array<string, mixed>>}
      */
     private function paginatedCollection(
@@ -554,8 +758,8 @@ class TikTokShopApiClient
     }
 
     /**
-     * @param array<string, int|string> $query
-     * @param array<string, mixed> $body
+     * @param  array<string, int|string>  $query
+     * @param  array<string, mixed>  $body
      * @return array<string, mixed>
      */
     private function collectionPage(
@@ -608,8 +812,7 @@ class TikTokShopApiClient
     /** @param list<array<string, mixed>> $records */
     private function sumNumeric(array $records, string $key): float
     {
-        return array_reduce($records, fn (float $sum, array $record): float =>
-            $sum + (is_numeric($record[$key] ?? null) ? (float) $record[$key] : 0.0), 0.0);
+        return array_reduce($records, fn (float $sum, array $record): float => $sum + (is_numeric($record[$key] ?? null) ? (float) $record[$key] : 0.0), 0.0);
     }
 
     /** @param list<array<string, mixed>> $records */

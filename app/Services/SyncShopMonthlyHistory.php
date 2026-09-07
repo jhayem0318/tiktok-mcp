@@ -40,6 +40,18 @@ class SyncShopMonthlyHistory
             report($exception);
         }
 
+        $analytics = null;
+
+        try {
+            $analytics = $this->tools->callForShop('tiktok_shop_analytics', [
+                'start_date' => $periodStart->toDateString(),
+                'end_date' => $periodEnd->toDateString(),
+                'limit' => 100,
+            ], $shop);
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+
         $orderSummary = [
             'date_range' => $orders['date_range'] ?? [],
             'order_value_summary' => data_get($orders, 'data.order_value_summary', []),
@@ -53,6 +65,11 @@ class SyncShopMonthlyHistory
             'summary' => data_get($finance, 'data.finance_summary', []),
             'reconciliation' => $finance['reconciliation'] ?? [],
         ];
+        $channelSummary = $analytics === null ? null : [
+            'analytics_date_range' => $analytics['date_range'] ?? [],
+            'channel_breakdown' => data_get($analytics, 'data.performance_summary.channel_breakdown', []),
+            'reconciliation' => $analytics['reconciliation'] ?? [],
+        ];
 
         return ShopMonthlyMetric::query()->updateOrCreate([
             'tik_tok_shop_id' => $shop->id,
@@ -63,6 +80,7 @@ class SyncShopMonthlyHistory
             'source' => $orders['source'] ?? 'TikTok Shop Open API',
             'order_summary' => $orderSummary,
             'finance_summary' => $financeSummary,
+            'channel_summary' => $channelSummary,
             'orders_complete' => (bool) data_get($orders, 'data.order_value_summary.complete', false),
             'finance_available' => $finance !== null,
             'synced_at' => now(),
