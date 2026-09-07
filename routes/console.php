@@ -11,3 +11,7 @@ Artisan::command('inspire', function () {
 Schedule::command('tiktok:shop:refresh')
     ->dailyAt('02:00')
     ->withoutOverlapping();
+
+Schedule::command('tiktok:shop:sync-months')
+    ->dailyAt('02:25')
+    ->withoutOverlapping();

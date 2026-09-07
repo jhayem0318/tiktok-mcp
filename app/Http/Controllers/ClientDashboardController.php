@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Jobs\GenerateClientDashboardReport;
 use App\Models\ClientDashboardReport;
+use App\Models\ShopMonthlyMetric;
 use App\Models\TikTokShop;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
@@ -75,10 +76,14 @@ class ClientDashboardController extends Controller
         $report = $shop === null ? null : ClientDashboardReport::query()
             ->where('user_id', $client->id)->where('tik_tok_shop_id', $shop->id)
             ->whereDate('start_date', $startDate)->whereDate('end_date', $endDate)->latest()->first();
+        $monthlyHistory = $shop === null ? collect() : ShopMonthlyMetric::query()
+            ->where('tik_tok_shop_id', $shop->id)
+            ->orderBy('period_start')
+            ->get();
 
         return view('client-dashboard', [
             'client' => $client, 'shops' => $shops, 'selectedShop' => $shop, 'report' => $report,
-            'startDate' => $startDate, 'endDate' => $endDate,
+            'startDate' => $startDate, 'endDate' => $endDate, 'monthlyHistory' => $monthlyHistory,
         ]);
     }
 
