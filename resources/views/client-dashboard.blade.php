@@ -127,6 +127,11 @@ document.getElementById('refresh-form')?.addEventListener('submit', function (e)
    btn.textContent = 'Refresh report';
   });
 });
+document.querySelectorAll('#refresh-form input[name="brands[]"]').forEach(function (checkbox) {
+ checkbox.addEventListener('change', function () {
+  document.getElementById('refresh-form')?.requestSubmit();
+ });
+});
 </script>
 <section class="section"><div class="section-head"><div><div class="eyebrow">Monthly history</div><h2>Saved months</h2><p>Select a saved month to view its database snapshot without requesting live data.</p></div></div>@forelse($monthlyHistory->groupBy(fn($m) => $m->period_start->format('Y')) as $year => $yearMonths)<div class="eyebrow" style="margin:{{ $loop->first ? '0' : '16px' }} 0 8px">{{ $year }}</div><div class="tabs">@foreach($yearMonths as $month)<a class="tab {{ $selectedShop && $month->period_start->toDateString() === $startDate && $month->period_end->toDateString() === $endDate ? 'active' : '' }}" href="{{ route('client.dashboard', ['shop_id'=>$selectedShop->shop_id,'start_date'=>$month->period_start->toDateString(),'end_date'=>$month->period_end->toDateString()]) }}">{{ $month->period_start->format('M Y') }} · {{ $month->orders_complete ? 'Saved' : 'Incomplete' }}</a>@endforeach</div>@empty<p class="empty">No months saved yet. Historical months must first be imported from the API.</p>@endforelse</section>
 @if($report?->status === 'pending' || $report?->status === 'running')<section class="section"><div class="status"><strong>Preparing the report.</strong> The page will refresh in 10 seconds; larger date ranges are processed in the background.</div><meta http-equiv="refresh" content="10"></section>
