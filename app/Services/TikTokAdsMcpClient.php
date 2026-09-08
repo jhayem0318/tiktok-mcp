@@ -133,8 +133,10 @@ class TikTokAdsMcpClient
                 ->post($this->resource(), [
                     'jsonrpc' => '2.0',
                     'id' => 1,
+                    // TikTok's MCP server rejects an empty PHP array here (it serializes
+                    // to JSON `[]`, but the endpoint requires an object, even when empty).
+                    'params' => ['name' => $tool, 'arguments' => (object) $arguments],
                     'method' => 'tools/call',
-                    'params' => ['name' => $tool, 'arguments' => $arguments],
                 ])
                 ->throw();
         } catch (ConnectionException|RequestException) {
@@ -149,6 +151,10 @@ class TikTokAdsMcpClient
             throw new TikTokAuthorizationException(
                 is_string($errorMessage) ? 'TikTok Ads tool call failed: '.$errorMessage : 'TikTok Ads tool call returned an unexpected response.',
             );
+        }
+
+        if (data_get($payload, 'result.isError') === true) {
+            throw new TikTokAuthorizationException('TikTok Ads tool call failed: '.$text);
         }
 
         $decoded = json_decode($text, true);
