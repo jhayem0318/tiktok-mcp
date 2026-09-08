@@ -70,6 +70,12 @@ input,select{width:100%;border:1px solid var(--line);border-radius:7px;padding:1
 .fulfil-bar i{display:block;height:100%}
 .fulfil-bar .ok{background:var(--accent-fill)}
 .fulfil-bar .no{background:var(--bad-fill)}
+.ads-status{display:inline-flex;align-items:center;gap:7px;padding:9px 12px;border-radius:99px;border:1px solid var(--line);background:var(--paper);font:600 11.5px 'IBM Plex Mono',monospace;color:var(--muted);text-decoration:none}
+.ads-status:hover{border-color:var(--ink-faint)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:99px;flex:none}
+.dot.disconnected{background:var(--bad-fill)}
+.dot.expiring{background:var(--soundcore-fill)}
+.dot.connected{background:var(--accent-fill)}
 .swatch{display:inline-block;width:9px;height:9px;border-radius:99px;margin-right:8px;flex:none}
 .swatch-0{background:var(--accent-fill)}.swatch-1{background:var(--soundcore-fill)}.swatch-2{background:var(--eufy)}.swatch-3{background:var(--solix-fill)}
 .footer{border-top:1px solid var(--line);margin-top:44px;padding-top:16px;color:var(--ink-faint);font:10.5px 'IBM Plex Mono',monospace;line-height:1.8}
@@ -85,7 +91,8 @@ html{scroll-behavior:smooth}body{margin:0}.section-head{scroll-margin-top:24px}
 .sidebar-title{font-family:'IBM Plex Sans Condensed',sans-serif;font-weight:700;color:var(--ink);font-size:15px}
 @media(max-width:840px){.sidebar{position:static;width:auto;padding:14px}.sidebar nav{display:flex;overflow:auto;margin-top:10px;gap:6px}.sidebar a{white-space:nowrap}.shell{margin-left:0}}
 </style></head><body><aside class="sidebar"><div class="sidebar-title">GoCommerce</div><nav aria-label="Dashboard sections" id="section-menu"></nav></aside><main class="shell">
-<header class="nav"><div class="brand"><span>GO</span>Commerce <small style="font-size:12px;font-weight:700;color:var(--muted)">TikTok Analytics</small></div><div class="nav-actions">@if($adsConnected)<span class="status" title="{{ $adsAccounts->pluck('name')->filter()->implode(', ') ?: $adsAccounts->pluck('advertiser_id')->implode(', ') }}">Ads connected</span>@else<a class="btn" href="{{ route('tiktok-ads.connect') }}">Connect TikTok Ads</a>@endif<a class="btn" href="{{ route('client.password.edit') }}">Change password</a><form method="POST" action="{{ route('client.logout') }}">@csrf<button class="btn">Sign out</button></form></div></header>
+@php($adsStatusLabel = ['disconnected' => 'Ads not connected', 'expiring' => 'Ads reconnecting', 'connected' => 'Ads connected'][$adsStatus])
+<header class="nav"><div class="brand"><span>GO</span>Commerce <small style="font-size:12px;font-weight:700;color:var(--muted)">TikTok Analytics</small></div><div class="nav-actions"><a class="ads-status" href="{{ route('tiktok-ads.connect') }}" title="{{ $adsAccounts->pluck('name')->filter()->implode(', ') ?: $adsAccounts->pluck('advertiser_id')->implode(', ') ?: 'Click to connect a TikTok Ads account' }}"><span class="dot {{ $adsStatus }}"></span>{{ $adsStatusLabel }}</a><a class="btn" href="{{ route('client.password.edit') }}">Change password</a><form method="POST" action="{{ route('client.logout') }}">@csrf<button class="btn">Sign out</button></form></div></header>
 @if(session('ads_connection_success'))<div class="status" style="display:block;margin-bottom:16px">TikTok Ads account connected.</div>@endif
 @if(session('ads_connection_error'))<div class="status warn" style="display:block;margin-bottom:16px">{{ session('ads_connection_error') }}</div>@endif
 <div class="intro"><div><div class="eyebrow">TikTok Shop performance</div><h1>{{ $client->name }}</h1><p class="sub">Seller-owned Shop operations and commercial performance</p></div><nav class="tabs">@foreach($shops as $shop)<a class="tab {{ $selectedShop?->id === $shop->id ? 'active' : '' }}" href="{{ route('client.dashboard',['shop_id'=>$shop->shop_id,'start_date'=>$startDate,'end_date'=>$endDate]) }}">{{ $shop->name }} · {{ $shop->region }}</a>@endforeach</nav></div>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Jobs\GenerateClientDashboardReport;
 use App\Models\ClientDashboardReport;
 use App\Models\ShopMonthlyMetric;
+use App\Models\TikTokAdsAccount;
 use App\Models\TikTokShop;
 use App\Models\User;
 use App\Services\TikTokShopApiClient;
@@ -131,16 +132,14 @@ class ClientDashboardController extends Controller
         // Multiple brands selected, or no matching snapshot/brand slice yet: fall through to the live report above.
 
         $adsAccounts = $client->adsAccounts()->with('authorization')->get();
-        $adsConnected = $adsAccounts->contains(
-            fn ($account) => $account->authorization !== null && $account->authorization->refresh_token_expires_at->isFuture(),
-        );
+        $adsStatus = $this->adsConnectionStatus($adsAccounts);
 
         return view('client-dashboard', [
             'client' => $client, 'shops' => $shops, 'selectedShop' => $shop, 'report' => $report,
             'startDate' => $startDate, 'endDate' => $endDate, 'monthlyHistory' => $monthlyHistory,
             'selectedBrands' => $selectedBrands,
             'availableBrands' => $shop === null ? [] : $this->apiClient->configuredBrandNames($shop),
-            'adsAccounts' => $adsAccounts, 'adsConnected' => $adsConnected,
+            'adsAccounts' => $adsAccounts, 'adsStatus' => $adsStatus,
         ]);
     }
 
@@ -218,6 +217,25 @@ class ClientDashboardController extends Controller
     private function assignedShops(User $client): Collection
     {
         return $client->shops()->orderBy('name')->get();
+    }
+
+    /**
+     * @param  Collection<int, TikTokAdsAccount>  $adsAccounts
+     */
+    private function adsConnectionStatus(Collection $adsAccounts): string
+    {
+        $liveAuthorizations = $adsAccounts->map(fn ($account) => $account->authorization)
+            ->filter(fn ($authorization) => $authorization !== null && $authorization->refresh_token_expires_at->isFuture());
+
+        if ($liveAuthorizations->isEmpty()) {
+            return 'disconnected';
+        }
+
+        $needsRefreshSoon = $liveAuthorizations->contains(
+            fn ($authorization) => $authorization->access_token_expires_at->isBefore(now()->addHours(2)),
+        );
+
+        return $needsRefreshSoon ? 'expiring' : 'connected';
     }
 
     /**
