@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('timezone', 64)->nullable();
             $table->timestamps();
 
-            $table->unique(['tik_tok_ads_authorization_id', 'advertiser_id']);
+            $table->unique(['tik_tok_ads_authorization_id', 'advertiser_id'], 'ads_accounts_authorization_advertiser_unique');
         });
     }
 
