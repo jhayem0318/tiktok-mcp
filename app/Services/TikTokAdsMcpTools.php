@@ -49,7 +49,8 @@ class TikTokAdsMcpTools
                         'type' => 'integer',
                         'minimum' => 1,
                         'maximum' => 1000,
-                        'default' => 20,
+                        'default' => 31,
+                        'description' => 'One row per day is returned; the default of 31 covers the maximum 30-day date range in a single page.',
                     ],
                 ],
                 'additionalProperties' => false,
@@ -79,7 +80,7 @@ class TikTokAdsMcpTools
 
         [$start, $end] = $this->dateRange($arguments);
         $page = max(1, (int) ($arguments['page'] ?? 1));
-        $pageSize = max(1, min(1000, (int) ($arguments['page_size'] ?? 20)));
+        $pageSize = max(1, min(1000, (int) ($arguments['page_size'] ?? 31)));
 
         $response = $this->adsClient->callTool('report_integrated_get', [
             'advertiser_id' => $account->advertiser_id,

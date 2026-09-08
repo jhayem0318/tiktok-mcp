@@ -48,14 +48,32 @@ class TikTokAdsCallbackController extends Controller
             $authorization = $storeAuthorization->handle($adsClient->clientId(), $tokenData['open_id'] ?? null, $tokenData);
 
             $advertisers = $adsClient->callTool('auth_advertiser_get', [], $authorization);
-            $accounts = [];
+            $advertiserIds = [];
+            $names = [];
 
             foreach ((array) data_get($advertisers, 'data.list', []) as $advertiser) {
-                $accounts[] = [
-                    'advertiser_id' => (string) data_get($advertiser, 'advertiser_id', ''),
-                    'name' => data_get($advertiser, 'advertiser_name'),
-                ];
+                $advertiserId = (string) data_get($advertiser, 'advertiser_id', '');
+
+                if ($advertiserId === '') {
+                    continue;
+                }
+
+                $advertiserIds[] = $advertiserId;
+                $names[$advertiserId] = data_get($advertiser, 'advertiser_name');
             }
+
+            $details = $advertiserIds === []
+                ? []
+                : $adsClient->callTool('advertiser_info_get', ['advertiser_ids' => $advertiserIds], $authorization);
+            $detailsById = collect((array) data_get($details, 'data.list', []))
+                ->keyBy(fn ($detail) => (string) data_get($detail, 'advertiser_id', ''));
+
+            $accounts = array_map(fn (string $advertiserId): array => [
+                'advertiser_id' => $advertiserId,
+                'name' => $names[$advertiserId] ?? $detailsById->get($advertiserId)['name'] ?? null,
+                'currency' => $detailsById->get($advertiserId)['currency'] ?? null,
+                'timezone' => $detailsById->get($advertiserId)['timezone'] ?? null,
+            ], $advertiserIds);
 
             $storedAccounts = $storeAccounts->handle($authorization, $accounts);
             $client->adsAccounts()->syncWithoutDetaching(array_map(
