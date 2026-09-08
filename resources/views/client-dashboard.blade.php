@@ -95,8 +95,39 @@ html{scroll-behavior:smooth}body{margin:0}.section-head{scroll-margin-top:24px}
 <header class="nav"><div class="brand"><span>GO</span>Commerce <small style="font-size:12px;font-weight:700;color:var(--muted)">TikTok Analytics</small></div><div class="nav-actions"><a class="ads-status" href="{{ route('tiktok-ads.connect') }}" title="{{ $adsAccounts->pluck('name')->filter()->implode(', ') ?: $adsAccounts->pluck('advertiser_id')->implode(', ') ?: 'Click to connect a TikTok Ads account' }}"><span class="dot {{ $adsStatus }}"></span>{{ $adsStatusLabel }}</a><a class="btn" href="{{ route('client.password.edit') }}">Change password</a><form method="POST" action="{{ route('client.logout') }}">@csrf<button class="btn">Sign out</button></form></div></header>
 @if(session('ads_connection_success'))<div class="status" style="display:block;margin-bottom:16px">TikTok Ads account connected.</div>@endif
 @if(session('ads_connection_error'))<div class="status warn" style="display:block;margin-bottom:16px">{{ session('ads_connection_error') }}</div>@endif
+@if($errors->any())<div class="status warn" style="display:block;margin-bottom:16px">{{ $errors->first() }}</div>@endif
 <div class="intro"><div><div class="eyebrow">TikTok Shop performance</div><h1>{{ $client->name }}</h1><p class="sub">Seller-owned Shop operations and commercial performance</p></div><nav class="tabs">@foreach($shops as $shop)<a class="tab {{ $selectedShop?->id === $shop->id ? 'active' : '' }}" href="{{ route('client.dashboard',['shop_id'=>$shop->shop_id,'start_date'=>$startDate,'end_date'=>$endDate]) }}">{{ $shop->name }} · {{ $shop->region }}</a>@endforeach</nav></div>
-<section class="filter"><form style="display:contents" method="POST" action="{{ route('client.dashboard.reports.store') }}">@csrf<label>Shop<select name="shop_id">@foreach($shops as $shop)<option value="{{ $shop->shop_id }}" @selected($selectedShop?->id === $shop->id)>{{ $shop->name }} · {{ $shop->region }}</option>@endforeach</select></label><label>Start date<input name="start_date" type="date" value="{{ $startDate }}"></label><label>End date (exclusive)<input name="end_date" type="date" value="{{ $endDate }}"></label><button class="btn primary">Refresh report</button>@if(count($availableBrands))<div class="brand-filter"><span class="metric-label" style="align-self:center">Brands</span>@foreach($availableBrands as $brand)<label class="brand-pill"><input type="checkbox" name="brands[]" value="{{ $brand }}" @checked(in_array($brand, $selectedBrands, true))>{{ $brand }}</label>@endforeach<span class="metric-note">None selected shows all brands</span></div>@endif</form></section>
+<section class="filter"><form id="refresh-form" style="display:contents" method="POST" action="{{ route('client.dashboard.reports.store') }}">@csrf<label>Shop<select name="shop_id">@foreach($shops as $shop)<option value="{{ $shop->shop_id }}" @selected($selectedShop?->id === $shop->id)>{{ $shop->name }} · {{ $shop->region }}</option>@endforeach</select></label><label>Start date<input name="start_date" type="date" value="{{ $startDate }}"></label><label>End date (exclusive)<input name="end_date" type="date" value="{{ $endDate }}"></label><button id="refresh-btn" class="btn primary">Refresh report</button>@if(count($availableBrands))<div class="brand-filter"><span class="metric-label" style="align-self:center">Brands</span>@foreach($availableBrands as $brand)<label class="brand-pill"><input type="checkbox" name="brands[]" value="{{ $brand }}" @checked(in_array($brand, $selectedBrands, true))>{{ $brand }}</label>@endforeach<span class="metric-note">None selected shows all brands</span></div>@endif</form></section>
+<script>
+document.getElementById('refresh-form')?.addEventListener('submit', function (e) {
+ e.preventDefault();
+ var form = e.target, btn = document.getElementById('refresh-btn');
+ if (btn.disabled) return;
+ btn.disabled = true;
+ btn.textContent = 'Refreshing…';
+ fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'Accept': 'text/html' } })
+  .then(function (res) {
+   if (res.status === 429) {
+    alert('Too many refresh requests in a short time. Please wait a moment and try again.');
+    btn.disabled = false;
+    btn.textContent = 'Refresh report';
+    return;
+   }
+   if (res.ok || res.redirected) {
+    window.location.href = res.url;
+    return;
+   }
+   alert('The report could not be refreshed. Please try again.');
+   btn.disabled = false;
+   btn.textContent = 'Refresh report';
+  })
+  .catch(function () {
+   alert('The report could not be refreshed — check your connection and try again.');
+   btn.disabled = false;
+   btn.textContent = 'Refresh report';
+  });
+});
+</script>
 <section class="section"><div class="section-head"><div><div class="eyebrow">Monthly history</div><h2>Saved months</h2><p>Select a saved month to view its database snapshot without requesting live data.</p></div></div>@forelse($monthlyHistory->groupBy(fn($m) => $m->period_start->format('Y')) as $year => $yearMonths)<div class="eyebrow" style="margin:{{ $loop->first ? '0' : '16px' }} 0 8px">{{ $year }}</div><div class="tabs">@foreach($yearMonths as $month)<a class="tab {{ $selectedShop && $month->period_start->toDateString() === $startDate && $month->period_end->toDateString() === $endDate ? 'active' : '' }}" href="{{ route('client.dashboard', ['shop_id'=>$selectedShop->shop_id,'start_date'=>$month->period_start->toDateString(),'end_date'=>$month->period_end->toDateString()]) }}">{{ $month->period_start->format('M Y') }} · {{ $month->orders_complete ? 'Saved' : 'Incomplete' }}</a>@endforeach</div>@empty<p class="empty">No months saved yet. Historical months must first be imported from the API.</p>@endforelse</section>
 @if($report?->status === 'pending' || $report?->status === 'running')<section class="section"><div class="status"><strong>Preparing the report.</strong> The page will refresh in 10 seconds; larger date ranges are processed in the background.</div><meta http-equiv="refresh" content="10"></section>
 @elseif($report?->status === 'failed')<section class="section"><div class="status warn">{{ $report->error_message }}</div></section>

@@ -80,13 +80,13 @@ class ClientDashboardController extends Controller
         $validated = $request->validate([
             'shop_id' => ['nullable', 'string'],
             'start_date' => ['nullable', 'date_format:Y-m-d'],
-            'end_date' => ['nullable', 'date_format:Y-m-d', 'after:start_date'],
+            'end_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:start_date'],
             'brands' => ['nullable', 'array'],
             'brands.*' => ['string'],
         ]);
         $shop = $shops->firstWhere('shop_id', $validated['shop_id'] ?? null) ?? $shops->first();
         $startDate = $validated['start_date'] ?? now('Asia/Manila')->subDays(7)->toDateString();
-        $endDate = $validated['end_date'] ?? now('Asia/Manila')->toDateString();
+        $endDate = $this->normalizeEndDate($startDate, $validated['end_date'] ?? now('Asia/Manila')->toDateString());
         $selectedBrands = $this->normalizeBrands($validated['brands'] ?? []);
         $brandsKey = $selectedBrands === [] ? null : implode(',', $selectedBrands);
         $report = $shop === null ? null : ClientDashboardReport::query()
@@ -159,22 +159,26 @@ class ClientDashboardController extends Controller
         $validated = $request->validate([
             'shop_id' => ['required', 'string'],
             'start_date' => ['required', 'date_format:Y-m-d'],
-            'end_date' => ['required', 'date_format:Y-m-d', 'after:start_date'],
+            'end_date' => ['required', 'date_format:Y-m-d', 'after_or_equal:start_date'],
             'brands' => ['nullable', 'array'],
             'brands.*' => ['string'],
         ]);
         $shop = $this->assignedShops($client)->firstWhere('shop_id', $validated['shop_id']);
         abort_unless($shop !== null, 403, 'That Shop is not assigned to this client.');
 
+        // The dashboard's END DATE is exclusive; a user picking the same day for
+        // both fields means "just that one day", so bump it forward a day rather
+        // than let "after_or_equal" silently produce a zero-width range.
+        $endDate = $this->normalizeEndDate($validated['start_date'], $validated['end_date']);
         $selectedBrands = $this->normalizeBrands($validated['brands'] ?? []);
         $brandsKey = $selectedBrands === [] ? null : implode(',', $selectedBrands);
-        $redirectParams = ['shop_id' => $validated['shop_id'], 'start_date' => $validated['start_date'], 'end_date' => $validated['end_date'], 'brands' => $selectedBrands];
+        $redirectParams = ['shop_id' => $validated['shop_id'], 'start_date' => $validated['start_date'], 'end_date' => $endDate, 'brands' => $selectedBrands];
 
         // Skip dispatching a live job when a saved snapshot already covers this request —
         // either whole-shop, or (since commit adding brand_summaries) exactly one selected brand.
         $existingSnapshot = ShopMonthlyMetric::query()->where('tik_tok_shop_id', $shop->id)
             ->whereDate('period_start', $validated['start_date'])
-            ->whereDate('period_end', $validated['end_date'])
+            ->whereDate('period_end', $endDate)
             ->where('orders_complete', true)->first();
         $servedFromSnapshot = $existingSnapshot && ($brandsKey === null
             || (count($selectedBrands) === 1 && isset($existingSnapshot->brand_summaries[$selectedBrands[0]])));
@@ -185,7 +189,7 @@ class ClientDashboardController extends Controller
 
         $attributes = [
             'user_id' => $client->id, 'tik_tok_shop_id' => $shop->id,
-            'start_date' => $validated['start_date'], 'end_date' => $validated['end_date'],
+            'start_date' => $validated['start_date'], 'end_date' => $endDate,
             'brands' => $brandsKey,
         ];
         $report = ClientDashboardReport::query()->where($attributes)->first();
@@ -221,6 +225,18 @@ class ClientDashboardController extends Controller
         abort_unless($client?->hasActiveClientAccess(), 403, 'Client access is no longer active.');
 
         return $client;
+    }
+
+    /**
+     * The dashboard's end date is exclusive, so a same-day start/end (the natural
+     * way to ask for "today only") would otherwise select a zero-width range and
+     * silently short-circuit report generation. Bump it forward one day instead.
+     */
+    private function normalizeEndDate(string $startDate, string $endDate): string
+    {
+        return $endDate === $startDate
+            ? CarbonImmutable::parse($startDate)->addDay()->toDateString()
+            : $endDate;
     }
 
     /** @return Collection<int, TikTokShop> */
