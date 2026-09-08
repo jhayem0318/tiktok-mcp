@@ -5,8 +5,9 @@ namespace App\Http\Controllers;
 use App\Actions\StoreAuthorizedTikTokAdsAccounts;
 use App\Actions\StoreTikTokAdsAuthorization;
 use App\Exceptions\TikTokAuthorizationException;
+use App\Models\User;
 use App\Services\TikTokAdsMcpClient;
-use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -18,12 +19,9 @@ class TikTokAdsCallbackController extends Controller
         TikTokAdsMcpClient $adsClient,
         StoreTikTokAdsAuthorization $storeAuthorization,
         StoreAuthorizedTikTokAdsAccounts $storeAccounts,
-    ): JsonResponse {
+    ): RedirectResponse {
         if ($request->string('error')->isNotEmpty()) {
-            return response()->json([
-                'status' => 'authorization_denied',
-                'message' => 'TikTok Ads authorization was not granted.',
-            ], 422);
+            return redirect()->route('client.dashboard')->with('ads_connection_error', 'TikTok Ads authorization was not granted.');
         }
 
         $validated = $request->validate([
@@ -31,14 +29,18 @@ class TikTokAdsCallbackController extends Controller
             'state' => ['required', 'string', 'max:255'],
         ]);
 
-        $codeVerifierCacheKey = 'tiktok-ads-pkce:'.$validated['state'];
-        $codeVerifier = Cache::pull($codeVerifierCacheKey);
+        $pending = Cache::pull('tiktok-ads-pkce:'.$validated['state']);
+        $codeVerifier = is_array($pending) ? ($pending['code_verifier'] ?? null) : null;
+        $clientUserId = is_array($pending) ? ($pending['user_id'] ?? null) : null;
 
-        if (! is_string($codeVerifier) || $codeVerifier === '') {
-            return response()->json([
-                'status' => 'invalid_callback',
-                'message' => 'The TikTok Ads authorization state has expired or is invalid.',
-            ], 422);
+        if (! is_string($codeVerifier) || $codeVerifier === '' || ! is_int($clientUserId)) {
+            return redirect()->route('client.dashboard')->with('ads_connection_error', 'The TikTok Ads authorization state has expired or is invalid.');
+        }
+
+        $client = User::query()->where('is_admin', false)->find($clientUserId);
+
+        if ($client === null) {
+            return redirect()->route('client.login');
         }
 
         try {
@@ -55,24 +57,19 @@ class TikTokAdsCallbackController extends Controller
                 ];
             }
 
-            $storeAccounts->handle($authorization, $accounts);
+            $storedAccounts = $storeAccounts->handle($authorization, $accounts);
+            $client->adsAccounts()->syncWithoutDetaching(array_map(
+                static fn ($account): int => $account->id,
+                $storedAccounts,
+            ));
         } catch (TikTokAuthorizationException $exception) {
             Log::warning('TikTok Ads authorization failed.', [
                 'reason' => $exception->getMessage(),
             ]);
 
-            return response()->json([
-                'status' => 'authorization_failed',
-                'message' => $exception->getMessage(),
-            ], 502);
+            return redirect()->route('client.dashboard')->with('ads_connection_error', $exception->getMessage());
         }
 
-        return response()->json([
-            'status' => 'authorized',
-            'accounts' => array_map(static fn (array $account): array => [
-                'advertiser_id' => $account['advertiser_id'],
-                'name' => $account['name'],
-            ], $accounts),
-        ]);
+        return redirect()->route('client.dashboard')->with('ads_connection_success', true);
     }
 }

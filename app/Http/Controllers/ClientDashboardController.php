@@ -130,11 +130,17 @@ class ClientDashboardController extends Controller
         }
         // Multiple brands selected, or no matching snapshot/brand slice yet: fall through to the live report above.
 
+        $adsAccounts = $client->adsAccounts()->with('authorization')->get();
+        $adsConnected = $adsAccounts->contains(
+            fn ($account) => $account->authorization !== null && $account->authorization->refresh_token_expires_at->isFuture(),
+        );
+
         return view('client-dashboard', [
             'client' => $client, 'shops' => $shops, 'selectedShop' => $shop, 'report' => $report,
             'startDate' => $startDate, 'endDate' => $endDate, 'monthlyHistory' => $monthlyHistory,
             'selectedBrands' => $selectedBrands,
             'availableBrands' => $shop === null ? [] : $this->apiClient->configuredBrandNames($shop),
+            'adsAccounts' => $adsAccounts, 'adsConnected' => $adsConnected,
         ]);
     }
 
