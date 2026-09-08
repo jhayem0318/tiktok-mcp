@@ -1,9 +1,90 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>{{ $client->name }} · TikTok Shop</title><style>
-:root{--ink:#172a2b;--muted:#637a7d;--line:#dce9e8;--paper:#fff;--page:#f3f8f7;--mint:#21c4a7;--teal:#148c82;--coral:#e75a61;--amber:#d58b21}*{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--ink);font:14px/1.48 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}.shell{max-width:1440px;margin:auto;padding:0 28px 70px}.nav{height:76px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:18px}.brand{font-weight:850;letter-spacing:-.04em;font-size:23px}.brand span{color:var(--mint)}.nav-actions{display:flex;gap:8px;align-items:center}.btn{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:9px 13px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);font:700 13px inherit;text-decoration:none;cursor:pointer}.btn.primary{border-color:var(--mint);background:var(--mint)}.eyebrow{font:750 11px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--teal)}h1{font-size:34px;letter-spacing:-.04em;margin:4px 0 2px}h2{font-size:18px;letter-spacing:-.025em;margin:4px 0}.sub{color:var(--muted);margin:0}.intro{display:flex;justify-content:space-between;gap:20px;align-items:end;padding:34px 0 20px}.tabs{display:flex;flex-wrap:wrap;gap:7px}.tab{border:1px solid var(--line);border-radius:99px;padding:8px 13px;background:#fff;color:var(--muted);font-weight:700;text-decoration:none}.tab.active{background:#d9faf1;border-color:#8ae5d4;color:#08796e}.filter{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px;display:grid;grid-template-columns:1.6fr 1fr 1fr auto;gap:10px;align-items:end}label{display:grid;gap:5px;color:var(--muted);font-size:12px;font-weight:750}input,select{width:100%;border:1px solid #c9dcdb;border-radius:7px;padding:10px;background:#fff;color:var(--ink);font:inherit}.section{margin-top:33px}.section-head{display:flex;align-items:end;justify-content:space-between;gap:16px;margin:0 0 12px}.section-head p{margin:0;color:var(--muted);font-size:12px}.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.card{background:#fff;border:1px solid var(--line);border-radius:11px;padding:16px}.metric-label{font:700 11px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}.metric{font-size:28px;font-weight:800;letter-spacing:-.045em;margin:9px 0 3px}.positive{color:var(--teal)}.negative{color:var(--coral)}.metric-note{font-size:12px;color:var(--muted)}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.rows{padding:3px 16px}.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}.row:last-child{border:0}.name{font-weight:730;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.detail{color:var(--muted);font:11px ui-monospace,SFMono-Regular,Menlo,monospace;margin-top:2px}.amount{font:750 13px ui-monospace,SFMono-Regular,Menlo,monospace}.bar{height:5px;border-radius:4px;background:#e5f0ef;margin-top:8px;overflow:hidden}.bar i{display:block;height:100%;border-radius:inherit;background:var(--mint)}.bar.cancel i{background:var(--coral)}.empty{color:var(--muted);padding:16px}.status{background:#eefaf6;border:1px solid #bdeedf;color:#14786d;border-radius:8px;padding:11px 13px;font-size:12px}.status.warn{background:#fff7e9;border-color:#f4d49d;color:#8b651e}.unavailable{background:#f8fbfb;color:var(--muted);border:1px dashed #c9dcdb;border-radius:11px;padding:20px}.sample{max-height:500px;overflow:auto}.pill{font:700 10px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.04em;padding:4px 6px;border-radius:99px;background:#edf4f4;color:#4d686a}.brand-filter{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center}.brand-pill{position:relative;border:1px solid var(--line);border-radius:99px;padding:8px 13px;background:#fff;color:var(--muted);font-weight:700;cursor:pointer}.brand-pill:hover{border-color:#9fc2c0}.brand-pill input{position:absolute;opacity:0;pointer-events:none}.brand-pill:has(input:checked){background:#d9faf1;border-color:#8ae5d4;color:#08796e}.footer{border-top:1px solid var(--line);margin-top:42px;padding-top:16px;color:var(--muted);font:11px ui-monospace,SFMono-Regular,Menlo,monospace}@media(max-width:840px){.shell{padding:0 16px 50px}.nav{height:auto;padding:15px 0;align-items:flex-start}.intro{display:block}.tabs{margin-top:16px}.filter,.kpis,.grid{grid-template-columns:1fr}.nav-actions{flex-wrap:wrap}.metric{font-size:25px}}
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>{{ $client->name }} · TikTok Shop</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink:#10181A;--muted:#55716C;--ink-faint:#85A29C;--line:#D7E6E2;--paper:#FFFFFF;--page:#F1F6F4;--surface-2:#E8F1EE;
+  --accent:#148F62;--accent-fill:#1BAF7A;--eufy:#2A78D6;--solix:#C6551F;--solix-fill:#EB6834;--soundcore:#A87200;--soundcore-fill:#EDA100;
+  --bad:#C62E2D;--bad-fill:#E34948;--warn:#9C6A00;--shadow:0 1px 2px rgba(16,24,26,.04),0 8px 20px -12px rgba(16,24,26,.12);
+}
+@media(prefers-color-scheme:dark){:root{
+  --ink:#EDF5F2;--muted:#93B0AA;--ink-faint:#5E7C77;--line:#2A3B38;--paper:#16201F;--page:#0E1516;--surface-2:#1C2928;
+  --accent:#3FD69C;--accent-fill:#199E70;--eufy:#6FAAF0;--solix:#F2895A;--solix-fill:#D95926;--soundcore:#F0BB4E;--soundcore-fill:#C98500;
+  --bad:#F0827E;--bad-fill:#E66767;--warn:#E0B84D;--shadow:0 1px 2px rgba(0,0,0,.3),0 10px 26px -14px rgba(0,0,0,.55);
+}}
+*{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--ink);font:14px/1.5 'IBM Plex Sans',ui-sans-serif,system-ui,sans-serif}
+.shell{max-width:1240px;margin:auto;padding:28px 24px 70px}
+.nav{height:auto;padding-bottom:20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:22px}
+.brand{font-family:'IBM Plex Sans Condensed',sans-serif;font-weight:700;letter-spacing:-.01em;font-size:21px}
+.brand span{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;background:var(--accent-fill);color:#06231B;font-family:'IBM Plex Mono',monospace;font-size:14px;margin-right:8px}
+.nav-actions{display:flex;gap:8px;align-items:center}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:9px 14px;border-radius:8px;border:1px solid var(--line);background:var(--paper);color:var(--muted);font:600 12.5px 'IBM Plex Sans',sans-serif;text-decoration:none;cursor:pointer}
+.btn:hover{border-color:var(--ink-faint);color:var(--ink)}
+.btn.primary{border-color:var(--accent-fill);background:var(--accent-fill);color:#06231B;font-weight:700}
+.eyebrow{font:600 11px 'IBM Plex Mono',monospace;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-faint)}
+h1,h2{font-family:'IBM Plex Sans Condensed',sans-serif;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+h1{font-size:28px;margin:6px 0 2px}h2{font-size:20px;margin:3px 0}
+.sub{color:var(--muted);margin:0;font-size:12.5px}
+.intro{display:flex;justify-content:space-between;gap:20px;align-items:end;padding:8px 0 20px}
+.tabs{display:flex;flex-wrap:wrap;gap:8px}
+.tab{font:600 12.5px 'IBM Plex Sans',sans-serif;border:1px solid var(--line);border-radius:99px;padding:8px 14px;background:var(--paper);color:var(--muted);text-decoration:none;transition:transform .08s}
+.tab:hover{border-color:var(--ink-faint);color:var(--ink);transform:translateY(-1px)}
+.tab.active{background:var(--accent-fill);border-color:var(--accent-fill);color:#06231B;font-weight:700}
+.filter{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;grid-template-columns:1.6fr 1fr 1fr auto;gap:10px;align-items:end;box-shadow:var(--shadow)}
+label{display:grid;gap:5px;color:var(--ink-faint);font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase}
+input,select{width:100%;border:1px solid var(--line);border-radius:7px;padding:10px;background:var(--paper);color:var(--ink);font:500 12.5px 'IBM Plex Mono',monospace}
+.section{margin-top:34px}
+.section-head{display:flex;align-items:end;justify-content:space-between;gap:16px;margin:0 0 12px}
+.section-head p{margin:3px 0 0;color:var(--muted);font-size:12.5px}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:17px;box-shadow:var(--shadow)}
+.metric-label{font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint)}
+.metric{font-family:'IBM Plex Sans Condensed',sans-serif;font-size:26px;font-weight:700;letter-spacing:-.02em;margin:8px 0 3px;font-variant-numeric:tabular-nums}
+.positive{color:var(--accent)}.negative{color:var(--bad)}
+.metric-note{font-size:11.5px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.rows{padding:2px 17px}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);align-items:center}
+.row:last-child{border:0}
+.name{font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.detail{color:var(--ink-faint);font:10.5px 'IBM Plex Mono',monospace;margin-top:2px}
+.amount{font:600 12.5px 'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+.bar{height:4px;border-radius:3px;background:var(--surface-2);margin-top:7px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:inherit;background:var(--accent-fill)}
+.bar.cancel i{background:var(--bad-fill)}
+.empty{color:var(--muted);padding:16px}
+.status{background:var(--surface-2);border:1px solid var(--line);color:var(--accent);border-radius:99px;padding:9px 14px;font:600 11.5px 'IBM Plex Mono',monospace}
+.status.warn{color:var(--warn)}
+.unavailable{background:var(--surface-2);color:var(--muted);border:1px dashed var(--line);border-radius:12px;padding:18px;font-size:12.5px}
+.sample{max-height:500px;overflow:auto}
+.pill{font:700 10px 'IBM Plex Mono',monospace;letter-spacing:.04em;padding:4px 7px;border-radius:99px;background:var(--surface-2);color:var(--muted)}
+.brand-filter{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.brand-pill{position:relative;font:600 12.5px 'IBM Plex Sans',sans-serif;border:1px solid var(--line);border-radius:99px;padding:8px 14px;background:var(--paper);color:var(--muted);cursor:pointer}
+.brand-pill:hover{border-color:var(--ink-faint)}
+.brand-pill input{position:absolute;opacity:0;pointer-events:none}
+.brand-pill:has(input:checked){background:var(--accent-fill);border-color:var(--accent-fill);color:#06231B;font-weight:700}
+.fulfil{margin-top:14px}
+.fulfil-label{display:flex;justify-content:space-between;font:11px 'IBM Plex Mono',monospace;color:var(--muted);margin-bottom:6px}
+.fulfil-bar{height:9px;border-radius:6px;overflow:hidden;display:flex;background:var(--surface-2)}
+.fulfil-bar i{display:block;height:100%}
+.fulfil-bar .ok{background:var(--accent-fill)}
+.fulfil-bar .no{background:var(--bad-fill)}
+.swatch{display:inline-block;width:9px;height:9px;border-radius:99px;margin-right:8px;flex:none}
+.swatch-0{background:var(--accent-fill)}.swatch-1{background:var(--soundcore-fill)}.swatch-2{background:var(--eufy)}.swatch-3{background:var(--solix-fill)}
+.footer{border-top:1px solid var(--line);margin-top:44px;padding-top:16px;color:var(--ink-faint);font:10.5px 'IBM Plex Mono',monospace;line-height:1.8}
+@media(max-width:840px){.shell{padding:20px 16px 50px}.nav{align-items:flex-start}.intro{display:block}.tabs{margin-top:16px}.filter,.kpis,.grid{grid-template-columns:1fr}.nav-actions{flex-wrap:wrap}.metric{font-size:22px}}
 </style><style>
-html{scroll-behavior:smooth}.section-head{scroll-margin-top:24px}.sidebar{position:fixed;inset:0 auto 0 0;width:235px;padding:28px 18px;background:var(--paper);border-right:1px solid var(--line);overflow:auto}.sidebar nav{display:grid;gap:6px;margin-top:24px}.sidebar a{padding:10px;border-radius:8px;color:var(--muted);text-decoration:none;font-weight:700}.sidebar a:hover,.sidebar a[aria-current]{background:#d9faf1;color:#08796e}.shell{margin-left:235px}.sidebar-title{font-weight:800;color:var(--teal)}@media(max-width:840px){.sidebar{position:static;width:auto;padding:16px}.sidebar nav{display:flex;overflow:auto;margin-top:12px}.sidebar a{white-space:nowrap}.shell{margin-left:0}}
-</style></head><body><aside class="sidebar"><div class="sidebar-title">Dashboard menu</div><nav aria-label="Dashboard sections" id="section-menu"></nav></aside><main class="shell">
+html{scroll-behavior:smooth}body{margin:0}.section-head{scroll-margin-top:24px}
+.sidebar{position:fixed;inset:0 auto 0 0;width:216px;padding:22px 16px;background:var(--paper);border-right:1px solid var(--line);overflow:auto}
+.sidebar nav{display:grid;gap:2px;margin-top:20px}
+.sidebar a{padding:8px 10px;border-radius:8px;color:var(--muted);text-decoration:none;font:600 12.5px 'IBM Plex Sans',sans-serif}
+.sidebar a:hover{background:var(--surface-2);color:var(--ink)}
+.sidebar a[aria-current]{background:var(--surface-2);color:var(--accent)}
+.shell{margin-left:216px}
+.sidebar-title{font-family:'IBM Plex Sans Condensed',sans-serif;font-weight:700;color:var(--ink);font-size:15px}
+@media(max-width:840px){.sidebar{position:static;width:auto;padding:14px}.sidebar nav{display:flex;overflow:auto;margin-top:10px;gap:6px}.sidebar a{white-space:nowrap}.shell{margin-left:0}}
+</style></head><body><aside class="sidebar"><div class="sidebar-title">GoCommerce</div><nav aria-label="Dashboard sections" id="section-menu"></nav></aside><main class="shell">
 <header class="nav"><div class="brand"><span>GO</span>Commerce <small style="font-size:12px;font-weight:700;color:var(--muted)">TikTok Analytics</small></div><div class="nav-actions"><a class="btn" href="{{ route('client.password.edit') }}">Change password</a><form method="POST" action="{{ route('client.logout') }}">@csrf<button class="btn">Sign out</button></form></div></header>
 <div class="intro"><div><div class="eyebrow">TikTok Shop performance</div><h1>{{ $client->name }}</h1><p class="sub">Seller-owned Shop operations and commercial performance</p></div><nav class="tabs">@foreach($shops as $shop)<a class="tab {{ $selectedShop?->id === $shop->id ? 'active' : '' }}" href="{{ route('client.dashboard',['shop_id'=>$shop->shop_id,'start_date'=>$startDate,'end_date'=>$endDate]) }}">{{ $shop->name }} · {{ $shop->region }}</a>@endforeach</nav></div>
 <section class="filter"><form style="display:contents" method="POST" action="{{ route('client.dashboard.reports.store') }}">@csrf<label>Shop<select name="shop_id">@foreach($shops as $shop)<option value="{{ $shop->shop_id }}" @selected($selectedShop?->id === $shop->id)>{{ $shop->name }} · {{ $shop->region }}</option>@endforeach</select></label><label>Start date<input name="start_date" type="date" value="{{ $startDate }}"></label><label>End date (exclusive)<input name="end_date" type="date" value="{{ $endDate }}"></label><button class="btn primary">Refresh report</button>@if(count($availableBrands))<div class="brand-filter"><span class="metric-label" style="align-self:center">Brands</span>@foreach($availableBrands as $brand)<label class="brand-pill"><input type="checkbox" name="brands[]" value="{{ $brand }}" @checked(in_array($brand, $selectedBrands, true))>{{ $brand }}</label>@endforeach<span class="metric-note">None selected shows all brands</span></div>@endif</form></section>
@@ -19,12 +100,12 @@ html{scroll-behavior:smooth}.section-head{scroll-margin-top:24px}.sidebar{positi
 @php($currency = $orders['currency'] ?? 'PHP')
 @php($productMax = max(1, (float) data_get($dash, 'top_products.0.value', 1)))
 @php($brandLabel = empty($selectedBrands) ? 'All brands' : implode(' + ', $selectedBrands))
-<section class="section"><div class="section-head"><div><div class="eyebrow">01 · Overview</div><h2>Commercial summary</h2><p>{{ data_get($summary,'date_range.start') }} to {{ data_get($summary,'date_range.end_exclusive') }} exclusive · {{ data_get($summary,'date_range.timezone','Asia/Manila') }} · {{ $currency }} · {{ $brandLabel }}</p></div><div class="status {{ ($orders['complete'] ?? false) ? '' : 'warn' }}">{{ ($orders['complete'] ?? false) ? 'Complete all-page data' : 'Check data completeness' }} · {{ number_format((int)($status['pages_fetched'] ?? 0)) }} pages</div></div><div class="kpis"><div class="card"><div class="metric-label">Net order value</div><div class="metric positive">{{ number_format((float)($dash['nmv'] ?? 0),2) }}</div><div class="metric-note">{{ $currency }} · GMV less canceled value; refunds excluded</div></div><div class="card"><div class="metric-label">Calculated GMV</div><div class="metric">{{ number_format((float)($orders['calculated_gmv'] ?? 0),2) }}</div><div class="metric-note">{{ $currency }} · subtotal plus platform discount</div></div><div class="card"><div class="metric-label">Orders scanned</div><div class="metric">{{ number_format((int)($status['records_scanned'] ?? 0)) }}</div><div class="metric-note">{{ number_format((int)($dash['completed_orders'] ?? 0)) }} delivered / completed</div></div><div class="card"><div class="metric-label">Average order value</div><div class="metric">{{ number_format((float)($dash['aov'] ?? 0),2) }}</div><div class="metric-note">{{ $currency }} · non-canceled orders</div></div></div></section>
+<section class="section"><div class="section-head"><div><div class="eyebrow">01 · Overview</div><h2>Commercial summary</h2><p>{{ data_get($summary,'date_range.start') }} to {{ data_get($summary,'date_range.end_exclusive') }} exclusive · {{ data_get($summary,'date_range.timezone','Asia/Manila') }} · {{ $currency }} · {{ $brandLabel }}</p></div><div class="status {{ ($orders['complete'] ?? false) ? '' : 'warn' }}">{{ ($orders['complete'] ?? false) ? 'Complete all-page data' : 'Check data completeness' }} · {{ number_format((int)($status['pages_fetched'] ?? 0)) }} pages</div></div>@php($fulfilGmv = max(0.01, (float)($orders['calculated_gmv'] ?? 0)))@php($fulfilOk = max(0, min(100, ((float)($dash['nmv'] ?? 0) / $fulfilGmv) * 100)))<div class="fulfil"><div class="fulfil-label"><span>Fulfilled value</span><span>Canceled value</span></div><div class="fulfil-bar"><i class="ok" style="width:{{ number_format($fulfilOk,2) }}%"></i><i class="no" style="width:{{ number_format(100-$fulfilOk,2) }}%"></i></div></div><div class="kpis"><div class="card"><div class="metric-label">Net order value</div><div class="metric positive">{{ number_format((float)($dash['nmv'] ?? 0),2) }}</div><div class="metric-note">{{ $currency }} · GMV less canceled value; refunds excluded</div></div><div class="card"><div class="metric-label">Calculated GMV</div><div class="metric">{{ number_format((float)($orders['calculated_gmv'] ?? 0),2) }}</div><div class="metric-note">{{ $currency }} · subtotal plus platform discount</div></div><div class="card"><div class="metric-label">Orders scanned</div><div class="metric">{{ number_format((int)($status['records_scanned'] ?? 0)) }}</div><div class="metric-note">{{ number_format((int)($dash['completed_orders'] ?? 0)) }} delivered / completed</div></div><div class="card"><div class="metric-label">Average order value</div><div class="metric">{{ number_format((float)($dash['aov'] ?? 0),2) }}</div><div class="metric-note">{{ $currency }} · non-canceled orders</div></div></div></section>
 <section class="section"><div class="section-head"><div><div class="eyebrow">02 · Operational health</div><h2>Orders, cancellations & subsidy</h2></div></div><div class="kpis"><div class="card"><div class="metric-label">Cancel rate by value</div><div class="metric negative">{{ number_format((float)($dash['cancel_rate_by_value'] ?? 0),2) }}%</div><div class="metric-note">{{ number_format((float)($dash['canceled_value'] ?? 0),2) }} {{ $currency }} canceled value</div></div><div class="card"><div class="metric-label">Canceled orders</div><div class="metric negative">{{ number_format((int)($dash['canceled_orders'] ?? 0)) }}</div><div class="metric-note">Of {{ number_format((int)($status['records_scanned'] ?? 0)) }} scanned orders</div></div><div class="card"><div class="metric-label">Units sold</div><div class="metric">{{ number_format((int)($dash['units'] ?? 0)) }}</div><div class="metric-note">Non-canceled line-item units</div></div><div class="card"><div class="metric-label">Platform subsidy</div><div class="metric" style="color:var(--amber)">{{ number_format((float)($dash['platform_subsidy'] ?? 0),2) }}</div><div class="metric-note">{{ $currency }} · platform discount amount</div></div></div></section>
 <section class="section"><div class="section-head"><div><div class="eyebrow">03 · Finance</div><h2>Settlement snapshot</h2><p>Statement totals may settle on a different schedule than order creation.@if(!empty($selectedBrands)) Always whole-shop — not affected by the brand filter.@endif</p></div></div>@if($summary['finance_unavailable'] ?? false)<div class="unavailable">{{ $summary['finance_unavailable'] }}</div>@else<div class="kpis"><div class="card"><div class="metric-label">Settlement amount</div><div class="metric positive">{{ number_format((float)($finance['settlement_amount'] ?? 0),2) }}</div><div class="metric-note">{{ $finance['currency'] ?? $currency }} · {{ number_format((int)($finance['statement_records'] ?? 0)) }} statements</div></div><div class="card"><div class="metric-label">Net sales</div><div class="metric">{{ number_format((float)($finance['net_sales_amount'] ?? 0),2) }}</div><div class="metric-note">Finance statement total</div></div><div class="card"><div class="metric-label">Fees</div><div class="metric negative">{{ number_format((float)($finance['fee_amount'] ?? 0),2) }}</div><div class="metric-note">Fees recorded in statements</div></div><div class="card"><div class="metric-label">Shipping cost</div><div class="metric">{{ number_format((float)($finance['shipping_cost_amount'] ?? 0),2) }}</div><div class="metric-note">Statement shipping cost</div></div></div>@endif</section>
 <section class="section"><div class="section-head"><div><div class="eyebrow">04 · Monthly trajectory</div><h2>Stored API history</h2><p>Monthly Shop totals are stored from complete API pagination. Finance uses statement dates; order metrics use order-created dates.</p></div></div><div class="card rows">@php($previousNmv = null)@forelse($monthlyHistory as $month)@php($monthOrders = $month->order_summary['order_value_summary'] ?? [])@php($monthDash = $month->order_summary['dashboard_summary'] ?? [])@php($monthNmv = (float)($monthDash['nmv'] ?? 0))@php($mom = $previousNmv === null || $previousNmv == 0.0 ? null : (($monthNmv - $previousNmv) / abs($previousNmv)) * 100)@php($previousNmv = $monthNmv)<div class="row"><div><div class="name">{{ $month->period_start->format('F Y') }}</div><div class="detail">GMV {{ number_format((float)($monthOrders['calculated_gmv'] ?? 0),2) }} · Subsidy {{ number_format((float)($monthDash['platform_subsidy'] ?? 0),2) }} · Cancel {{ number_format((float)($monthDash['cancel_rate_by_value'] ?? 0),2) }}% · {{ $month->orders_complete ? 'complete' : 'incomplete' }}</div></div><div class="amount">NMV {{ number_format($monthNmv,2) }}@if($mom !== null)<br><span class="{{ $mom >= 0 ? 'positive' : 'negative' }}" style="font-size:11px">{{ $mom >= 0 ? '+' : '' }}{{ number_format($mom,1) }}% MoM</span>@endif</div></div>@empty<div class="empty">No stored history yet. An administrator can backfill months through the read-only TikTok Shop API.</div>@endforelse</div></section>
 @if(!empty($dash['brand_mix']))
-<section class="section"><div class="section-head"><div><div class="eyebrow">Brand mix</div><h2>Revenue by brand</h2><p>{{ $currency }} · Same GMV/NMV/cancel-rate formulas as the headline KPIs, split by product-name keyword match</p></div></div><div class="card rows">@foreach($dash['brand_mix'] as $brand)<div class="row"><div><div class="name">{{ $brand['name'] }}</div><div class="detail">{{ number_format((int)$brand['units']) }} units sold</div></div><div class="amount">{{ number_format((float)$brand['nmv'],2) }}<br><span class="negative" style="font-size:11px">{{ number_format((float)$brand['cancel_rate_by_value'],2) }}% canceled</span></div></div>@endforeach</div></section>
+<section class="section"><div class="section-head"><div><div class="eyebrow">Brand mix</div><h2>Revenue by brand</h2><p>{{ $currency }} · Same GMV/NMV/cancel-rate formulas as the headline KPIs, split by product-name keyword match</p></div></div><div class="card rows">@foreach($dash['brand_mix'] as $brand)<div class="row"><div><div class="name"><span class="swatch swatch-{{ $loop->index % 4 }}"></span>{{ $brand['name'] }}</div><div class="detail">{{ number_format((int)$brand['units']) }} units sold</div></div><div class="amount">{{ number_format((float)$brand['nmv'],2) }}<br><span class="negative" style="font-size:11px">{{ number_format((float)$brand['cancel_rate_by_value'],2) }}% canceled</span></div></div>@endforeach</div></section>
 @endif
 @if(!empty($dash['campaign_periods']))
 <section class="section"><div class="section-head"><div><div class="eyebrow">Campaign periods</div><h2>Orders by day-of-month window</h2><p>Fixed default windows; cancel rate is value-weighted, same formula as the headline KPI</p></div></div><div class="card rows">@foreach($dash['campaign_periods'] as $period)<div class="row"><div><div class="name">{{ $period['name'] }}</div><div class="detail">{{ number_format((int)$period['orders']) }} orders · GMV {{ number_format((float)$period['gmv'],2) }} · Subsidy {{ number_format((float)$period['platform_subsidy'],2) }}</div></div><div class="amount">NMV {{ number_format((float)$period['nmv'],2) }}<br><span class="negative" style="font-size:11px">{{ number_format((float)$period['cancel_rate_by_value'],2) }}% canceled</span></div></div>@endforeach</div></section>
@@ -43,12 +124,32 @@ html{scroll-behavior:smooth}.section-head{scroll-margin-top:24px}.sidebar{positi
 @else<section class="section"><div class="status warn">No Shop is assigned to this dashboard account.</div></section>@endif
 </main><script>
 const menu=document.getElementById('section-menu');
+const navLinks=[],navTargets=[];
 document.querySelectorAll('.section-head').forEach((section,index)=>{
  const label=section.querySelector('.eyebrow');if(!label)return;
  const title=label.textContent.replace(/^\d+\s*·\s*/, '');
  label.textContent=String(index+1).padStart(2,'0')+' · '+title;
  section.id='dashboard-section-'+index;
  const link=document.createElement('a');link.href='#'+section.id;link.textContent=label.textContent;
- link.addEventListener('click',()=>{menu.querySelectorAll('a').forEach(a=>a.removeAttribute('aria-current'));link.setAttribute('aria-current','location');});menu.appendChild(link);
+ menu.appendChild(link);navLinks.push(link);navTargets.push(section);
 });
+
+// Click sets the active link immediately; scroll position takes back over shortly
+// after (a side-by-side pair of sections shares one scroll position, so position
+// tracking alone can't tell which of the two was clicked).
+const FOCUS_Y=130;let suppressUntil=0,ticking=false;
+function setActive(idx){navLinks.forEach((a,i)=>{if(i===idx)a.setAttribute('aria-current','location');else a.removeAttribute('aria-current');});}
+navLinks.forEach((a,i)=>{a.addEventListener('click',()=>{setActive(i);suppressUntil=Date.now()+700;});});
+function updateActive(){
+ ticking=false;
+ if(Date.now()<suppressUntil)return;
+ const atBottom=window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-2;
+ if(atBottom){setActive(navTargets.length-1);return;}
+ let bestIdx=0,bestTop=-Infinity;
+ navTargets.forEach((t,i)=>{const top=t.getBoundingClientRect().top;if(top<=FOCUS_Y&&top>bestTop){bestTop=top;bestIdx=i;}});
+ setActive(bestIdx);
+}
+window.addEventListener('scroll',()=>{if(ticking)return;ticking=true;requestAnimationFrame(updateActive);},{passive:true});
+window.addEventListener('resize',updateActive);
+updateActive();
 </script></body></html>
