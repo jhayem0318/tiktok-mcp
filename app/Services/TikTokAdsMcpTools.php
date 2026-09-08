@@ -156,6 +156,12 @@ class TikTokAdsMcpTools
             throw new InvalidArgumentException('end_date must be after start_date.');
         }
 
+        // TikTok's report_integrated_get caps stat_time_day spans at 30 days
+        // (API error 40002 otherwise).
+        if ($start->diffInDays($end) > 30) {
+            throw new InvalidArgumentException('The maximum date range is 30 days.');
+        }
+
         return [$start, $end];
     }
 

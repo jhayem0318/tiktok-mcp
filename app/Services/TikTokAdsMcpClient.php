@@ -163,6 +163,17 @@ class TikTokAdsMcpClient
             throw new TikTokAuthorizationException('TikTok Ads tool call returned an invalid payload.');
         }
 
+        // The JSON-RPC envelope can report success while the underlying TikTok
+        // API call it wraps failed — that failure surfaces here as a non-zero
+        // `code` alongside a human-readable `message`, e.g. a report request
+        // that exceeds TikTok's own date-range limit.
+        $apiCode = $decoded['code'] ?? null;
+
+        if (is_int($apiCode) && $apiCode !== 0) {
+            $apiMessage = is_string($decoded['message'] ?? null) ? $decoded['message'] : 'Unknown TikTok API error.';
+            throw new TikTokAuthorizationException('TikTok Ads API error ('.$apiCode.'): '.$apiMessage);
+        }
+
         return $decoded;
     }
 
