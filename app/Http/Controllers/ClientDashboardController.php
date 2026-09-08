@@ -2,22 +2,30 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\TikTokAuthorizationException;
 use App\Jobs\GenerateClientDashboardReport;
 use App\Models\ClientDashboardReport;
 use App\Models\ShopMonthlyMetric;
 use App\Models\TikTokAdsAccount;
 use App\Models\TikTokShop;
 use App\Models\User;
+use App\Services\TikTokAdsMcpTools;
 use App\Services\TikTokShopApiClient;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use InvalidArgumentException;
 
 class ClientDashboardController extends Controller
 {
-    public function __construct(private readonly TikTokShopApiClient $apiClient) {}
+    public function __construct(
+        private readonly TikTokShopApiClient $apiClient,
+        private readonly TikTokAdsMcpTools $adsTools,
+    ) {}
 
     public function login(Request $request): View|RedirectResponse
     {
@@ -133,6 +141,7 @@ class ClientDashboardController extends Controller
 
         $adsAccounts = $client->adsAccounts()->with('authorization')->get();
         $adsStatus = $this->adsConnectionStatus($adsAccounts);
+        [$adsPerformance, $adsError, $adsAccount] = $this->loadAdsPerformance($adsAccounts, $adsStatus, $shop, $startDate, $endDate);
 
         return view('client-dashboard', [
             'client' => $client, 'shops' => $shops, 'selectedShop' => $shop, 'report' => $report,
@@ -140,6 +149,7 @@ class ClientDashboardController extends Controller
             'selectedBrands' => $selectedBrands,
             'availableBrands' => $shop === null ? [] : $this->apiClient->configuredBrandNames($shop),
             'adsAccounts' => $adsAccounts, 'adsStatus' => $adsStatus,
+            'adsAccount' => $adsAccount, 'adsPerformance' => $adsPerformance, 'adsError' => $adsError,
         ]);
     }
 
@@ -236,6 +246,62 @@ class ClientDashboardController extends Controller
         );
 
         return $needsRefreshSoon ? 'expiring' : 'connected';
+    }
+
+    /**
+     * @param  Collection<int, TikTokAdsAccount>  $adsAccounts
+     * @return array{0: ?array<string, mixed>, 1: ?string, 2: ?TikTokAdsAccount}
+     */
+    private function loadAdsPerformance(
+        Collection $adsAccounts,
+        string $adsStatus,
+        ?TikTokShop $shop,
+        string $startDate,
+        string $endDate,
+    ): array {
+        if ($adsStatus === 'disconnected' || $shop === null) {
+            return [null, null, null];
+        }
+
+        $account = $this->guessAdsAccount($adsAccounts, $shop);
+
+        if ($account === null) {
+            return [null, null, null];
+        }
+
+        // report_integrated_get caps the date span at 30 days; the Shop dashboard
+        // allows up to a full calendar month, so clamp rather than error out.
+        $clampedEnd = CarbonImmutable::parse($startDate)->addDays(30)->lessThan(CarbonImmutable::parse($endDate))
+            ? CarbonImmutable::parse($startDate)->addDays(30)->toDateString()
+            : $endDate;
+
+        try {
+            $performance = $this->adsTools->call('tiktok_ads_performance', [
+                'advertiser_id' => $account->advertiser_id,
+                'start_date' => $startDate,
+                'end_date' => $clampedEnd,
+            ], $adsAccounts);
+
+            return [$performance, null, $account];
+        } catch (InvalidArgumentException|TikTokAuthorizationException $exception) {
+            return [null, $exception->getMessage(), $account];
+        }
+    }
+
+    /** @param  Collection<int, TikTokAdsAccount>  $adsAccounts */
+    private function guessAdsAccount(Collection $adsAccounts, TikTokShop $shop): ?TikTokAdsAccount
+    {
+        if ($adsAccounts->isEmpty()) {
+            return null;
+        }
+
+        $shopTokens = collect(preg_split('/\s+/', strtolower($shop->name ?? '')) ?: [])
+            ->filter(fn (string $token): bool => strlen($token) > 2)
+            ->all();
+
+        return $adsAccounts->first(
+            fn (TikTokAdsAccount $account): bool => $shopTokens !== [] && Str::contains(strtolower((string) $account->name), $shopTokens),
+        ) ?? $adsAccounts->first();
     }
 
     /**
