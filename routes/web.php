@@ -3,6 +3,8 @@
 use App\Http\Controllers\ClientAccessAdminController;
 use App\Http\Controllers\ClientDashboardController;
 use App\Http\Controllers\RemoteMcpOAuthController;
+use App\Http\Controllers\TikTokAdsCallbackController;
+use App\Http\Controllers\TikTokAdsConnectController;
 use App\Http\Controllers\TikTokShopCallbackController;
 use App\Http\Controllers\TikTokShopReviewController;
 use App\Http\Controllers\TikTokShopReviewLoginController;
@@ -17,6 +19,12 @@ Route::get('/', function () {
 
 Route::get('/tiktok/callback', TikTokShopCallbackController::class)
     ->name('tiktok.callback');
+
+Route::get('/tiktok-ads/connect', TikTokAdsConnectController::class)
+    ->middleware('throttle:10,1')
+    ->name('tiktok-ads.connect');
+Route::get('/tiktok-ads/callback', TikTokAdsCallbackController::class)
+    ->name('tiktok-ads.callback');
 
 Route::get('/tiktok/review', TikTokShopReviewController::class)
     ->middleware('throttle:30,1')

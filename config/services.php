@@ -57,4 +57,9 @@ return [
         'remote_mcp_authorization_code_ttl' => (int) env('TIKTOK_REMOTE_MCP_AUTHORIZATION_CODE_TTL', 300),
     ],
 
+    'tiktok_ads' => [
+        'redirect_uri' => env('TIKTOK_ADS_REDIRECT_URI'),
+        'server' => env('TIKTOK_ADS_MCP_SERVER', 'tt-ads-mcp-layer'),
+    ],
+
 ];
