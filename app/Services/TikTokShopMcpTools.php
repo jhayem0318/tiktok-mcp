@@ -48,7 +48,7 @@ class TikTokShopMcpTools
     /** @return list<array<string, mixed>> */
     public function definitions(): array
     {
-        return array_map(fn (string $dataset): array => [
+        return array_merge(array_map(fn (string $dataset): array => [
             'name' => 'tiktok_shop_'.$dataset,
             'description' => $this->description($dataset),
             'inputSchema' => [
@@ -104,7 +104,37 @@ class TikTokShopMcpTools
                 'idempotentHint' => true,
                 'openWorldHint' => true,
             ],
-        ], self::DATASETS);
+        ], self::DATASETS), [$this->orderTransactionsDefinition()]);
+    }
+
+    /** @return array<string, mixed> */
+    private function orderTransactionsDefinition(): array
+    {
+        return [
+            'name' => 'tiktok_shop_order_transactions',
+            'description' => 'Read the SKU-level fee, tax, and shipping-cost breakdown for a single order — commission, transaction fee, affiliate commission, and every other per-order charge TikTok deducted before settlement. Joins to tiktok_shop_orders by order_id. Only data from 2023-07-01 onward is available (TikTok API limitation).',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => [
+                    'shop_id' => [
+                        'type' => 'string',
+                        'description' => 'Required when your client access is assigned to more than one Shop. Use only a Shop ID assigned to your access.',
+                    ],
+                    'order_id' => [
+                        'type' => 'string',
+                        'description' => 'The order ID from tiktok_shop_orders to look up fee/transaction detail for.',
+                    ],
+                ],
+                'required' => ['order_id'],
+                'additionalProperties' => false,
+            ],
+            'annotations' => [
+                'readOnlyHint' => true,
+                'destructiveHint' => false,
+                'idempotentHint' => true,
+                'openWorldHint' => true,
+            ],
+        ];
     }
 
     /**
@@ -163,6 +193,10 @@ class TikTokShopMcpTools
     ): array {
         $dataset = str_starts_with($name, 'tiktok_shop_') ? substr($name, 12) : '';
 
+        if ($dataset === 'order_transactions') {
+            return $this->orderTransactions($arguments, $shop);
+        }
+
         if (! in_array($dataset, self::DATASETS, true)) {
             throw new InvalidArgumentException('Unknown TikTok Shop tool.');
         }
@@ -209,6 +243,30 @@ class TikTokShopMcpTools
                 'join_dimensions' => ['date_range', 'timezone', 'currency', 'product_or_sku_when_available'],
             ],
             'data' => $this->redact($data, $dataset),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     * @return array<string, mixed>
+     */
+    private function orderTransactions(array $arguments, TikTokShop $shop): array
+    {
+        $orderId = $arguments['order_id'] ?? null;
+
+        if (! is_string($orderId) || $orderId === '') {
+            throw new InvalidArgumentException('order_id is required.');
+        }
+
+        $data = $this->client->orderTransactions($shop, $orderId);
+
+        return [
+            'source' => 'TikTok Shop Open API',
+            'dataset' => 'order_transactions',
+            'shop' => ['name' => $shop->name, 'region' => $shop->region],
+            'currency' => 'LOCAL',
+            'attribution' => 'Total Shop data; not TikTok Ads-attributed revenue.',
+            'data' => $this->redact($data, 'order_transactions'),
         ];
     }
 

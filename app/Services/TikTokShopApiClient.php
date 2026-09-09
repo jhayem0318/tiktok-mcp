@@ -776,6 +776,19 @@ class TikTokShopApiClient
         return $result;
     }
 
+    /**
+     * SKU-level fee/tax/shipping breakdown for a single order, joining the
+     * order-level GMV data (from orders()) to the commission/fee data that
+     * only the Finance statement endpoints expose. Only data from 2023-07-01
+     * onward is available (TikTok API limitation).
+     *
+     * @return array<string, mixed>
+     */
+    public function orderTransactions(TikTokShop $shop, string $orderId): array
+    {
+        return $this->shopRequest($shop, 'GET', '/finance/202501/orders/'.$orderId.'/statement_transactions');
+    }
+
     /** @return array<string, mixed> */
     public function analytics(TikTokShop $shop, string $startDate, string $endDate, int $pageSize = 20, ?string $pageToken = null): array
     {
