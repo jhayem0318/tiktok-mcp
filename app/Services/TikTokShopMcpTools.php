@@ -34,15 +34,9 @@ class TikTokShopMcpTools
         'unit_number',
         'postal_code',
         'zip_code',
-        'latitude',
-        'longitude',
-        'geo_location',
         'phone',
         'email',
         'tracking_number',
-        'order_id',
-        'order_number',
-        'order_sn',
         'package_id',
         'transaction_id',
         'payment_id',
@@ -139,12 +133,11 @@ class TikTokShopMcpTools
      */
     public function callForShop(string $name, array $arguments, TikTokShop $shop): array
     {
-        return $this->callForShopWithRedaction($name, $arguments, $shop, false);
+        return $this->callForShopWithRedaction($name, $arguments, $shop);
     }
 
     /**
-     * Return reviewer evidence for a TikTok sandbox shop. Resource identifiers are
-     * retained so TikTok can verify the integration; all customer fields remain
+     * Return reviewer evidence for a TikTok sandbox shop. Customer fields remain
      * redacted. Production shops are intentionally rejected.
      *
      * @param  array<string, mixed>  $arguments
@@ -156,7 +149,7 @@ class TikTokShopMcpTools
             throw new InvalidArgumentException('Reviewer evidence is available only for a TikTok sandbox shop.');
         }
 
-        return $this->callForShopWithRedaction($name, $arguments, $shop, true);
+        return $this->callForShopWithRedaction($name, $arguments, $shop);
     }
 
     /**
@@ -167,7 +160,6 @@ class TikTokShopMcpTools
         string $name,
         array $arguments,
         TikTokShop $shop,
-        bool $preserveResourceIds,
     ): array {
         $dataset = str_starts_with($name, 'tiktok_shop_') ? substr($name, 12) : '';
 
@@ -216,7 +208,7 @@ class TikTokShopMcpTools
                 'combination_rule' => 'Compare and reconcile the two scopes; never add Ads-attributed revenue to total Shop revenue.',
                 'join_dimensions' => ['date_range', 'timezone', 'currency', 'product_or_sku_when_available'],
             ],
-            'data' => $this->redact($data, $dataset, $preserveResourceIds),
+            'data' => $this->redact($data, $dataset),
         ];
     }
 
@@ -291,10 +283,10 @@ class TikTokShopMcpTools
     {
         return match ($dataset) {
             'analytics' => 'Read seller-owned TikTok Shop product performance and GMV metrics. This is total Shop data, not Ads-attributed revenue.',
-            'orders' => 'Read seller-owned TikTok Shop orders, line-item commercial details, exact all-page status totals, and Custom GMV: SUM(line_items.sale_price + line_items.platform_discount). The order_value_summary is complete only when every page and every required line-item price was read. Use next_page_token with page_token to retrieve redacted records. Product/SKU, status, monetary, promotion, and coarse country/region/city fields are retained; customer names, contact details, exact addresses, postal codes, coordinates, payment references, and order identifiers are removed.',
+            'orders' => 'Read seller-owned TikTok Shop orders, line-item commercial details, exact all-page status totals, and Custom GMV: SUM(line_items.sale_price + line_items.platform_discount). The order_value_summary is complete only when every page and every required line-item price was read. Use next_page_token with page_token to retrieve redacted records. Product/SKU, status, monetary, promotion, order identifiers, and geo-coordinates are retained; customer names, contact details, exact addresses, postal codes, and payment references are removed.',
             'products' => 'Read the current TikTok Shop product and SKU catalogue without changing listings.',
             'finance' => 'Read TikTok Shop seller statements, fees, commissions, subsidies, and settlement data.',
-            'returns' => 'Read TikTok Shop returns and refunds for commercial aggregation. Customer and order identifiers are removed.',
+            'returns' => 'Read TikTok Shop returns and refunds for commercial aggregation. Order identifiers are retained; customer identifiers are removed.',
             'promotions' => 'Read current TikTok Shop promotion activities without creating or changing promotions.',
         };
     }
@@ -356,7 +348,7 @@ class TikTokShopMcpTools
         return false;
     }
 
-    private function redact(mixed $value, string $path = '', bool $preserveResourceIds = false): mixed
+    private function redact(mixed $value, string $path = ''): mixed
     {
         if (! is_array($value)) {
             return $value;
@@ -367,18 +359,12 @@ class TikTokShopMcpTools
         foreach ($value as $key => $item) {
             $keyPath = $path.'.'.(string) $key;
             $isAggregateLabel = str_contains($path, 'summary.counts');
-            $isOrderRecordId = $key === 'id'
-                && (str_contains($path, 'orders') || str_contains($path, 'returns'));
 
-            $isReviewResourceId = $preserveResourceIds
-                && preg_match('/^(products\.products|orders\.orders)\.\d+$/', $path) === 1
-                && in_array($key, ['id', 'product_id', 'order_id'], true);
-
-            if (! $isReviewResourceId && ((! $isAggregateLabel && is_string($key) && $this->isSensitive($key)) || $isOrderRecordId)) {
+            if (! $isAggregateLabel && is_string($key) && $this->isSensitive($key)) {
                 continue;
             }
 
-            $clean[$key] = $this->redact($item, $keyPath, $preserveResourceIds);
+            $clean[$key] = $this->redact($item, $keyPath);
         }
 
         return $clean;
