@@ -16,8 +16,9 @@
 *{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--ink);font:14px/1.5 'IBM Plex Sans',ui-sans-serif,system-ui,sans-serif}
 .shell{max-width:1240px;margin:auto;padding:28px 24px 70px}
 .nav{height:auto;padding-bottom:20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:22px}
-.brand{font-family:'IBM Plex Sans Condensed',sans-serif;font-weight:700;letter-spacing:-.01em;font-size:21px}
-.brand span{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;background:var(--accent-fill);color:#06231B;font-family:'IBM Plex Mono',monospace;font-size:14px;margin-right:8px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand img{height:26px;width:auto;display:block;border-radius:6px}
+.sidebar-title img{height:22px;width:auto;display:block}
 .nav-actions{display:flex;gap:8px;align-items:center}
 .btn{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:9px 14px;border-radius:8px;border:1px solid var(--line);background:var(--paper);color:var(--muted);font:600 12.5px 'IBM Plex Sans',sans-serif;text-decoration:none;cursor:pointer}
 .btn:hover{border-color:var(--ink-faint);color:var(--ink)}
@@ -88,11 +89,11 @@ html{scroll-behavior:smooth}body{margin:0}.section-head{scroll-margin-top:24px}
 .sidebar a:hover{background:var(--surface-2);color:var(--ink)}
 .sidebar a[aria-current]{background:var(--surface-2);color:var(--accent)}
 .shell{margin-left:216px}
-.sidebar-title{font-family:'IBM Plex Sans Condensed',sans-serif;font-weight:700;color:var(--ink);font-size:15px}
+.sidebar-title{display:flex;align-items:center}
 @media(max-width:840px){.sidebar{position:static;width:auto;padding:14px}.sidebar nav{display:flex;overflow:auto;margin-top:10px;gap:6px}.sidebar a{white-space:nowrap}.shell{margin-left:0}}
-</style></head><body><aside class="sidebar"><div class="sidebar-title">GoCommerce</div><nav aria-label="Dashboard sections" id="section-menu"></nav></aside><main class="shell">
+</style></head><body><aside class="sidebar"><div class="sidebar-title"><img src="{{ asset('images/gocommerce-wordmark.png') }}" alt="GoCommerce" style="height:22px;width:auto"></div><nav aria-label="Dashboard sections" id="section-menu"></nav></aside><main class="shell">
 @php($adsStatusLabel = ['disconnected' => 'Ads not connected', 'expiring' => 'Ads reconnecting', 'connected' => 'Ads connected'][$adsStatus])
-<header class="nav"><div class="brand"><span>GO</span>Commerce <small style="font-size:12px;font-weight:700;color:var(--muted)">TikTok Analytics</small></div><div class="nav-actions"><a class="ads-status" href="{{ route('tiktok-ads.connect') }}" title="{{ $adsAccounts->pluck('name')->filter()->implode(', ') ?: $adsAccounts->pluck('advertiser_id')->implode(', ') ?: 'Click to connect a TikTok Ads account' }}"><span class="dot {{ $adsStatus }}"></span>{{ $adsStatusLabel }}</a><a class="btn" href="{{ route('client.password.edit') }}">Change password</a><form method="POST" action="{{ route('client.logout') }}">@csrf<button class="btn">Sign out</button></form></div></header>
+<header class="nav"><div class="brand"><img src="{{ asset('images/gocommerce-wordmark.png') }}" alt="GoCommerce"> <small style="font-size:12px;font-weight:700;color:var(--muted)">TikTok Analytics</small></div><div class="nav-actions"><a class="ads-status" href="{{ route('tiktok-ads.connect') }}" title="{{ $adsAccounts->pluck('name')->filter()->implode(', ') ?: $adsAccounts->pluck('advertiser_id')->implode(', ') ?: 'Click to connect a TikTok Ads account' }}"><span class="dot {{ $adsStatus }}"></span>{{ $adsStatusLabel }}</a><a class="btn" href="{{ route('client.password.edit') }}">Change password</a><form method="POST" action="{{ route('client.logout') }}">@csrf<button class="btn">Sign out</button></form></div></header>
 @if(session('ads_connection_success'))<div class="status" style="display:block;margin-bottom:16px">TikTok Ads account connected.</div>@endif
 @if(session('ads_connection_error'))<div class="status warn" style="display:block;margin-bottom:16px">{{ session('ads_connection_error') }}</div>@endif
 @if($errors->any())<div class="status warn" style="display:block;margin-bottom:16px">{{ $errors->first() }}</div>@endif

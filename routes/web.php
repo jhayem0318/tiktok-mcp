@@ -10,12 +10,7 @@ use App\Http\Controllers\TikTokShopReviewController;
 use App\Http\Controllers\TikTokShopReviewLoginController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return response()->json([
-        'service' => 'tiktok-mcp',
-        'status' => 'ok',
-    ]);
-});
+Route::get('/', fn () => redirect()->route('client.login'));
 
 Route::get('/tiktok/callback', TikTokShopCallbackController::class)
     ->name('tiktok.callback');

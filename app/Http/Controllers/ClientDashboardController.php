@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\ClientGuestException;
 use App\Exceptions\TikTokAuthorizationException;
 use App\Jobs\GenerateClientDashboardReport;
 use App\Models\ClientDashboardReport;
@@ -228,7 +229,12 @@ class ClientDashboardController extends Controller
     private function requireClient(Request $request): User
     {
         $client = $this->client($request);
-        abort_unless($client?->hasActiveClientAccess(), 403, 'Client access is no longer active.');
+
+        if ($client === null) {
+            throw new ClientGuestException;
+        }
+
+        abort_unless($client->hasActiveClientAccess(), 403, 'Client access is no longer active.');
 
         return $client;
     }
